@@ -1,0 +1,112 @@
+:root {
+  --app-bg: #f7f7f8;
+  --surface: #fff;
+  --surface-soft: #f5f5f5;
+  --text-primary: #252525;
+  --text-secondary: #858585;
+  --border-color: #e5e5e5;
+  --desktop-bar-height: 48px;
+  --ui-font-size: 14px;
+}
+html, body { min-width: 1024px; min-height: 680px; }
+body { background: var(--app-bg); color: var(--text-primary); }
+.app { min-height: 632px; }
+.composer textarea, .user-request, .agent-message p { font-size: var(--ui-font-size); }
+#settings-button { color: #777; }
+#settings-button:hover { color: #222; background: #e8e8ea; }
+html[data-show-activity="false"] .project-study { display: none; }
+html[data-show-suggestions="false"] .start-suggestions { display: none; }
+html[data-density="compact"] .main-nav button,
+html[data-density="compact"] .utility-nav button,
+html[data-density="compact"] .task-item { padding-top: 7px; padding-bottom: 7px; }
+html[data-density="compact"] .messages { padding-top: 20px; }
+html[data-density="compact"] .agent-message { margin-top: 22px; }
+html[data-density="compact"] .step { padding-bottom: 14px; }
+html[data-density="compact"] .composer textarea { min-height: 76px; height: 76px; }
+html[data-reduce-motion="true"] *, html[data-reduce-motion="true"] *::before,
+html[data-reduce-motion="true"] *::after, html[data-reduce-motion="true"] dialog::backdrop {
+  animation: none !important; transition: none !important; scroll-behavior: auto !important;
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --app-bg: #191919;
+  --surface: #222;
+  --surface-soft: #2b2b2b;
+  --text-primary: #e7e7e7;
+  --text-secondary: #aaa;
+  --border-color: #383838;
+  --line: #373737;
+  --muted: #aaa;
+}
+html[data-theme="dark"] body,
+html[data-theme="dark"] .desktop-bar,
+html[data-theme="dark"] .sidebar { background: var(--app-bg); color: var(--text-primary); }
+html[data-theme="dark"] .workspace,
+html[data-theme="dark"] .composer-area,
+html[data-theme="dark"] .inspector,
+html[data-theme="dark"] .artifact,
+html[data-theme="dark"] dialog { background: var(--surface); border-color: var(--border-color); color: var(--text-primary); }
+html[data-theme="dark"] .app-menu,
+html[data-theme="dark"] .composer,
+html[data-theme="dark"] .permission,
+html[data-theme="dark"] .dialog-select,
+html[data-theme="dark"] .file-bar,
+html[data-theme="dark"] .terminal,
+html[data-theme="dark"] .terminal-dock,
+html[data-theme="dark"] .terminal-heading,
+html[data-theme="dark"] .workspace-mode,
+html[data-theme="dark"] .doc-note { background: var(--surface-soft); border-color: var(--border-color); color: var(--text-primary); }
+html[data-theme="dark"] .desktop-brand,
+html[data-theme="dark"] .project-switch strong,
+html[data-theme="dark"] .start-content h1,
+html[data-theme="dark"] .dialog-heading h2,
+html[data-theme="dark"] .menu-option-title,
+html[data-theme="dark"] .menu-option[aria-checked="true"] .menu-option-title,
+html[data-theme="dark"] .menu-option-check>svg,
+html[data-theme="dark"] .dialog-select,
+html[data-theme="dark"] .user-request,
+html[data-theme="dark"] .agent-message p,
+html[data-theme="dark"] .terminal-tab strong,
+html[data-theme="dark"] .terminal-line-command,
+html[data-theme="dark"] #terminal-input,
+html[data-theme="dark"] .recent-projects .project-row strong { color: var(--text-primary); }
+html[data-theme="dark"] .main-nav button,
+html[data-theme="dark"] .utility-nav button,
+html[data-theme="dark"] .account,
+html[data-theme="dark"] .task-item,
+html[data-theme="dark"] .titlebar>strong,
+html[data-theme="dark"] .menu-option,
+html[data-theme="dark"] .desktop-bar nav button,
+html[data-theme="dark"] .step-desc,
+html[data-theme="dark"] .document p,
+html[data-theme="dark"] .document td,
+html[data-theme="dark"] .checklist,
+html[data-theme="dark"] .secondary,
+html[data-theme="dark"] .model-picker,
+html[data-theme="dark"] .permission-picker { color: #c7c7c7; }
+html[data-theme="dark"] button:hover,
+html[data-theme="dark"] .menu-option:focus-visible,
+html[data-theme="dark"] .task-item.active,
+html[data-theme="dark"] [aria-expanded="true"],
+html[data-theme="dark"] .lead,
+html[data-theme="dark"] .account .user-avatar,
+html[data-theme="dark"] .document th,
+html[data-theme="dark"] .add-context,
+html[data-theme="dark"] .dialog-actions .secondary { background: #373737; color: #eee; border-color: #444; }
+html[data-theme="dark"] .secondary,
+html[data-theme="dark"] .search-input,
+html[data-theme="dark"] .section-label .icon-btn { background: #2b2b2b; border-color: #444; color: #ddd; }
+html[data-theme="dark"] .primary,
+html[data-theme="dark"] .send-btn { background: #ededed; color: #202020; }
+html[data-theme="dark"] .primary:hover,
+html[data-theme="dark"] .send-btn:hover { background: #fff; }
+html[data-theme="dark"] .composer:focus-within { border-color: #727272; }
+html[data-theme="dark"] .menu-separator { background: #414141; }
+html[data-theme="dark"] .sidebar-bottom,
+html[data-theme="dark"] .dialog-actions,
+html[data-theme="dark"] .terminal-heading { border-color: var(--border-color); }
+html[data-theme="dark"] .diff-file summary { background: #303030; }
+html[data-theme="dark"] .code-line.add { background: #20382a; color: #99c8a6; }
+html[data-theme="dark"] .code-line.del { background: #412c2c; color: #e0abab; }
+html[data-theme="dark"] .project-study { opacity: .8; }
+@media(min-width:1700px) { :root { --desktop-bar-height:54px; } }

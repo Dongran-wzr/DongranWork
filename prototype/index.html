@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dongran · 项目工作台</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="refined.css">
+  <link rel="stylesheet" href="terminal.css">
+  <link rel="stylesheet" href="ui.css">
+  <link rel="stylesheet" href="desktop.css">
+  <link rel="stylesheet" href="settings.css">
+  <link rel="stylesheet" href="settings-memory.css">
+  <link rel="stylesheet" href="settings-integrations.css">
+  <link rel="stylesheet" href="settings-personalization.css">
+  <link rel="stylesheet" href="activity.css">
+  <link rel="stylesheet" href="settings-account.css">
+  <link rel="stylesheet" href="workspace-pages.css">
+  <link rel="stylesheet" href="scheduled-tasks.css">
+  <script defer src="node_modules/lucide/dist/umd/lucide.js"></script>
+  <script defer src="ui.js"></script>
+  <script defer src="activity.js"></script>
+  <script defer src="app.js"></script>
+  <script defer src="terminal.js"></script>
+  <script defer src="settings-memory.js"></script>
+  <script defer src="settings-integrations.js"></script>
+  <script defer src="settings-personalization.js"></script>
+  <script defer src="settings-account.js"></script>
+  <script defer src="settings.js"></script>
+  <script defer src="scheduled-tasks.js"></script>
+  <script defer src="workspace-pages.js"></script>
+</head>
+<body>
+  <div class="desktop-bar">
+    <button class="icon-btn" data-action="sidebar" title="切换侧栏" aria-label="切换侧栏"><i data-lucide="panel-left"></i></button>
+    <span class="desktop-brand">Dongran</span><span class="desktop-divider"></span>
+    <nav aria-label="应用菜单"><button id="file-menu-trigger" data-menu="file" aria-haspopup="menu" aria-expanded="false">文件</button><button id="edit-menu-trigger" data-menu="edit" aria-haspopup="menu" aria-expanded="false">编辑</button><button id="view-menu-trigger" data-menu="view" aria-haspopup="menu" aria-expanded="false">视图</button><button id="help-menu-trigger" data-menu="help" aria-haspopup="menu" aria-expanded="false">帮助</button></nav>
+    <span class="desktop-caption">本地工作区</span>
+    <button class="icon-btn" data-action="fullscreen" title="切换全屏" aria-label="切换全屏"><i data-lucide="maximize"></i></button>
+  </div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><span class="workspace-mode"><i data-lucide="square-terminal"></i>工作台</span><span class="brand-subtitle">Agent</span></div>
+      <nav class="main-nav" aria-label="主导航">
+        <button data-action="new"><i data-lucide="square-pen"></i>新的任务</button>
+        <button data-action="search"><i data-lucide="search"></i>搜索任务</button>
+        <button id="knowledge-nav" data-action="knowledge" aria-controls="workspace-page"><i data-lucide="library"></i>知识库</button>
+        <button id="schedules-nav" data-action="schedules" aria-controls="workspace-page"><i data-lucide="calendar-clock"></i>定时任务</button>
+      </nav>
+      <div class="section-label">工作区<button class="icon-btn" data-action="projects" title="打开项目" aria-label="打开项目"><i data-lucide="plus"></i></button></div>
+      <button class="project-switch" data-action="projects"><span class="project-icon"><i data-lucide="folder-open"></i></span><span><strong id="project-name">打开项目目录</strong><small id="project-path">本地工作区</small></span><i data-lucide="chevrons-up-down"></i></button>
+      <div class="task-section-label">任务 <span id="task-count">0</span></div>
+      <div id="task-list" class="task-list"></div>
+      <div class="sidebar-bottom">
+        <nav class="utility-nav"><button data-action="files"><i data-lucide="folder-tree"></i>项目文件</button><button data-action="team"><i data-lucide="bot"></i>Agent 团队<span class="utility-count">4</span></button><button data-action="settings"><i data-lucide="sliders-horizontal"></i>工作区设置</button></nav>
+        <div class="account"><button id="account-profile" class="account-profile" type="button" data-action="account" title="账户设置" aria-label="账户设置"><span class="user-avatar" data-account-avatar>D</span><span data-account-name>Dongran-wzr</span></button><span class="dot"></span><button id="settings-button" class="icon-btn" title="设置" aria-label="设置" data-action="settings"><i data-lucide="settings-2"></i></button></div>
+      </div>
+    </aside>
+    <main class="workspace">
+      <header class="titlebar"><span id="breadcrumb">工作台</span><span class="slash">/</span><strong id="header-title">新的任务</strong><div class="title-actions"><span class="local-tag"><span class="dot"></span>主 Agent 已就绪</span><button id="terminal-toggle" class="icon-btn" title="终端" aria-label="终端" aria-expanded="false" aria-controls="terminal-dock"><i data-lucide="square-terminal"></i></button><button class="icon-btn" data-action="panel" title="切换产物面板" aria-label="切换产物面板"><i data-lucide="panel-right"></i></button></div></header>
+      <div class="work-body">
+        <section class="conversation">
+          <div id="messages" class="messages"></div>
+          <div id="composer-area" class="composer-area" hidden>
+            <div id="attachment-list" class="attachment-list"></div>
+            <form id="composer" class="composer">
+              <textarea id="prompt" rows="3" placeholder="描述你的需求，交给主 Agent…" aria-label="任务内容"></textarea>
+              <div class="composer-toolbar"><div class="toolbar-group"><button type="button" class="icon-btn add-context" data-action="projects" title="选择项目" aria-label="选择项目"><i data-lucide="plus"></i></button><button type="button" class="icon-btn" data-action="attach" title="添加文件" aria-label="添加文件"><i data-lucide="paperclip"></i></button><input id="mode" type="hidden" value="修改前询问"><button id="mode-trigger" type="button" class="permission-picker" data-menu="permissions" data-field="mode" aria-label="执行权限" aria-haspopup="menu" aria-expanded="false"><i data-lucide="shield-check"></i><span id="mode-label">修改前询问</span><i data-lucide="chevron-down"></i></button></div><div class="toolbar-group"><button id="model-trigger" type="button" class="model-picker" data-menu="model" title="模型设置" aria-label="选择模型" aria-haspopup="menu" aria-expanded="false"><i data-lucide="sparkles"></i><span id="model-label">Auto</span><i data-lucide="chevron-down"></i></button><button id="send" class="send-btn" type="submit" title="发送任务" aria-label="发送任务"><i data-lucide="arrow-up"></i></button></div></div>
+            </form>
+            <div class="composer-meta"><button data-action="projects"><i data-lucide="folder-open"></i><span id="context-project">选择项目目录</span><i data-lucide="chevron-down"></i></button><span><i data-lucide="git-branch"></i><span id="branch-name">未连接项目</span></span></div>
+          </div>
+        </section>
+        <aside id="inspector" class="inspector" hidden>
+          <div class="inspector-heading"><strong>任务产物</strong><span id="artifact-total">3</span><button class="icon-btn" data-action="panel" title="收起面板" aria-label="收起面板"><i data-lucide="panel-right-close"></i></button></div>
+          <div class="tabs" role="tablist"><button role="tab" data-tab="doc" class="active"><i data-lucide="file-text"></i>文档</button><button role="tab" data-tab="diff"><i data-lucide="git-pull-request"></i>变更 <span>4</span></button><button role="tab" data-tab="run"><i data-lucide="terminal"></i>运行</button><button role="tab" data-tab="files"><i data-lucide="folder-tree"></i>文件</button></div>
+          <div id="inspector-content" class="inspector-content"></div>
+          <div class="inspector-footer"><i data-lucide="shield-check"></i><span id="artifact-status">项目内产物 · 等待审查</span></div>
+        </aside>
+      </div>
+      <section id="workspace-page" class="workspace-page" hidden aria-labelledby="workspace-page-title">
+        <div class="workspace-page-toolbar"><button id="workspace-page-back" type="button" data-page-action="back"><i data-lucide="arrow-left"></i>返回工作台</button></div>
+        <div id="workspace-page-content" class="workspace-page-content"></div>
+      </section>
+      <section id="terminal-dock" class="terminal-dock" hidden aria-label="终端"></section>
+    </main>
+  </div>
+  <section id="settings-screen" class="settings-screen" hidden aria-label="设置"></section>
+  <dialog id="dialog" aria-labelledby="dialog-title"><div class="dialog-heading"><h2 id="dialog-title"></h2><button class="icon-btn" data-action="close-dialog" title="关闭" aria-label="关闭"><i data-lucide="x"></i></button></div><div id="dialog-content"></div></dialog>
+  <input id="directory-input" type="file" webkitdirectory multiple hidden>
+  <input id="file-input" type="file" multiple hidden>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>

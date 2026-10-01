@@ -1,0 +1,9 @@
+{
+  "name": "dongran-work-prototype",
+  "private": true,
+  "version": "0.1.0",
+  "devDependencies": {
+    "lucide": "^0.468.0",
+    "playwright": "^1.51.0"
+  }
+}

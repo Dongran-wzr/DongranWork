@@ -1,0 +1,38 @@
+.activity-map, .project-study.activity-map {
+  --activity-0: #eef0ee;
+  --activity-1: #dce9de;
+  --activity-2: #b6d3bd;
+  --activity-3: #85b697;
+  --activity-4: #5b9472;
+  --activity-5: #426f55;
+  display: grid;
+  grid-template-columns: repeat(28,8px);
+  grid-template-rows: repeat(7,8px);
+  grid-auto-flow: column;
+  gap: 3px;
+  width: 305px;
+  height: 74px;
+  margin: 20px auto 35px;
+  opacity: 1;
+}
+.activity-map .activity-cell {
+  display: block;
+  width: 8px;
+  height: 8px;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 2px;
+  background: var(--activity-0);
+  transition: box-shadow 120ms;
+}
+.activity-map .activity-cell[data-level="1"] { background: var(--activity-1); }
+.activity-map .activity-cell[data-level="2"] { background: var(--activity-2); }
+.activity-map .activity-cell[data-level="3"] { background: var(--activity-3); }
+.activity-map .activity-cell[data-level="4"] { background: var(--activity-4); }
+.activity-map .activity-cell[data-level="5"] { background: var(--activity-5); }
+.activity-map .activity-cell:hover:not(:disabled), .activity-map .activity-cell:focus-visible { outline: 1px solid var(--activity-5); outline-offset: 2px; }
+.activity-map .activity-cell:disabled { opacity: .35; cursor: default; }
+.activity-tooltip { position: fixed; z-index: 12; width: max-content; max-width: 280px; padding: 8px 11px; border: 1px solid var(--border-color,#ddd); border-radius: 6px; background: var(--surface,#fff); color: var(--text-primary,#252525); box-shadow: 0 4px 18px #00000010; font-size: 11px; line-height: 1.5; pointer-events: none; }
+html[data-theme="dark"] .activity-map { --activity-0:#2d3430; --activity-1:#304a39; --activity-2:#38654a; --activity-3:#438760; --activity-4:#63a880; --activity-5:#8bcaa3; }

@@ -1,0 +1,57 @@
+.memory-section { margin-top: 36px; }
+.memory-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 23px 0; }
+.memory-toolbar .settings-segment { align-self: flex-start; }
+.memory-toolbar .settings-segment button { padding-left: 11px; padding-right: 11px; }
+.memory-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px; font-size: 10px; color: var(--settings-muted); background: var(--settings-soft); border-radius: 4px; }
+.memory-list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 20px 0 13px; }
+.memory-search-box { display: flex; align-items: center; gap: 8px; width: 265px; max-width: 60%; min-height: 35px; padding: 0 9px; border: 1px solid var(--settings-line); border-radius: 6px; background: var(--settings-surface); color: var(--settings-muted); }
+.memory-search-box > svg { width: 14px; height: 14px; }
+.memory-search-box input { width: 100%; min-width: 0; padding: 8px 0; border: 0; outline: none; background: transparent; color: var(--settings-text); font-size: 12px; }
+.memory-search-box input::placeholder { color: var(--settings-muted); }
+.memory-search-box input::-webkit-search-cancel-button { display: none; }
+.memory-search-box:focus-within { border-color: #a0a0a0; box-shadow: 0 0 0 2px #8881; }
+.memory-search-box .icon-btn { width: 20px; height: 24px; }
+.memory-search-box .icon-btn svg { width: 12px; height: 12px; }
+.memory-clear-button { display: inline-flex; align-items: center; gap: 6px; padding: 7px 1px; color: var(--settings-muted); font-size: 11px; white-space: nowrap; }
+.memory-clear-button svg { width: 13px; height: 13px; }
+.memory-clear-button:hover { background: transparent; color: #b65349; }
+.memory-list { border-top: 1px solid var(--settings-line); }
+.memory-entry { display: flex; align-items: flex-start; gap: 12px; padding: 20px 0; border-bottom: 1px solid var(--settings-line); }
+.memory-entry-icon { display: inline-flex; margin-top: 3px; color: var(--settings-muted); }
+.memory-entry-icon svg { width: 16px; height: 16px; }
+.memory-entry-copy { min-width: 0; flex: 1; }
+.memory-entry h3 { margin: 0 0 7px; font-size: var(--ui-font-size,14px); font-weight: 500; line-height: 1.5; overflow-wrap: anywhere; }
+.memory-entry-copy > p { margin: 0; color: var(--settings-muted); font-size: calc(var(--ui-font-size,14px) - 2px); line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.memory-entry-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 13px; margin-top: 11px; font-size: 10px; color: #999; }
+.memory-entry-meta > span:first-child { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.memory-entry-actions { display: flex; gap: 3px; flex-shrink: 0; }
+.memory-entry-actions .icon-btn { width: 27px; height: 27px; color: var(--settings-muted); }
+.memory-entry-actions .icon-btn svg { width: 14px; height: 14px; }
+.memory-entry-actions [data-memory-delete]:hover { color: #b65349; }
+.memory-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 205px; padding: 28px 15px; text-align: center; color: var(--settings-muted); }
+.memory-empty > svg { width: 26px; height: 26px; margin-bottom: 16px; color: #a3a3a3; stroke-width: 1.4; }
+.memory-empty > strong { font-size: 13px; font-weight: 400; color: var(--settings-text); }
+.memory-empty > p { font-size: 11px; margin: 8px 0 0; line-height: 1.7; }
+.memory-list-footer { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; color: #9b9b9b; font-size: 10px; }
+.memory-current-project { display: flex; align-items: center; gap: 8px; padding: 5px 0 15px; font-size: 12px; color: var(--settings-text); }
+.memory-current-project > svg { width: 14px; height: 14px; color: var(--settings-muted); }
+.memory-current-project > span:first-of-type { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.memory-project-path { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #969696; font-size: 10px; }
+.memory-project-preferences { border-top: 1px solid var(--settings-line); }
+.memory-project-preference { display: flex; align-items: center; gap: 18px; padding: 15px 0; border-bottom: 1px solid var(--settings-line); }
+.memory-project-preference > div { flex: 1; min-width: 0; }
+.memory-project-preference strong { font-size: 12px; font-weight: 400; }
+.memory-project-preference p { margin: 5px 0 0; color: var(--settings-muted); font-size: 11px; line-height: 1.6; }
+.memory-project-preference .settings-switch { flex-shrink: 0; }
+.memory-editor-scope { display: flex; align-items: center; gap: 7px; padding: 0 0 8px; font-size: 12px; color: var(--text-secondary,#858585); }
+.memory-editor-scope svg { width: 14px; height: 14px; }
+.memory-editor-field { display: grid; gap: 9px; margin-top: 19px; font-size: 12px; color: var(--text-secondary,#858585); }
+.memory-editor-field input, .memory-editor-field textarea { width: 100%; padding: 10px 11px; border: 1px solid var(--border-color,#dedede); border-radius: 7px; background: var(--surface,#fff); color: var(--text-primary,#252525); outline: none; font-size: 13px; line-height: 1.7; }
+.memory-editor-field textarea { min-height: 148px; max-height: 290px; resize: vertical; }
+.memory-editor-field input:focus, .memory-editor-field textarea:focus { border-color: #a0a0a0; box-shadow: 0 0 0 2px #8881; }
+.memory-editor-field input::placeholder, .memory-editor-field textarea::placeholder { color: #aaa; font-size: 12px; }
+.memory-editor-length { margin-top: 7px; text-align: right; font-size: 10px; color: #999; }
+.memory-editor-error { color: #ba5649; font-size: 12px; line-height: 1.7; margin: 12px 0 0; }
+html[data-density="compact"] .memory-entry { padding-top: 14px; padding-bottom: 14px; }
+html[data-theme="dark"] .memory-editor-error { color: #e09a8f; }
+@media (max-width: 1250px) { .memory-toolbar { gap: 10px; } .memory-toolbar .settings-segment button { padding-left: 8px; padding-right: 8px; } .memory-entry { gap: 10px; } .memory-search-box { width: 215px; } }
