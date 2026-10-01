@@ -18,6 +18,7 @@ playwright-report/
 
 .DS_Store
 Thumbs.db
+.idea/
 .tools/
 .runtime/
 backend/data/
