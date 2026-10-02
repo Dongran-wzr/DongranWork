@@ -165,7 +165,10 @@
   });
   window.addEventListener('resize', () => closeMenu({ immediate: true }));
   document.addEventListener('scroll', event => {
-    if (!menu.contains(event.target)) closeMenu({ immediate: true, restoreFocus: false });
+    if (!menuOpen() || menu.contains(event.target)) return;
+    const rect = anchor?.getBoundingClientRect();
+    if (!rect || rect.bottom < 0 || rect.top > innerHeight) closeMenu({ immediate: true, restoreFocus: false });
+    else positionMenu();
   }, true);
 
   function closeDialog() {

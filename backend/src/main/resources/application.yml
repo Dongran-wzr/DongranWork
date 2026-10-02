@@ -26,5 +26,6 @@ logging:
     root: WARN
     com.dongran: INFO
 dongran:
+  sandbox-helper: ${DONGRAN_SANDBOX_HELPER:}
   data-dir: ${DONGRAN_DATA_DIR:${user.home}/.dongran-work}
   token: ${DONGRAN_TOKEN:}

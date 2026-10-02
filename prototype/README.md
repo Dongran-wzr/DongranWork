@@ -1,6 +1,10 @@
 # Dongran desktop prototype
 
-面向研发与产品部门的本地项目 Agent 工作台。打开 `index.html` 即可体验，不需要启动服务。
+面向研发与产品部门的本地项目 Agent 工作台。
+
+- 真实运行：启动后端后打开 `http://127.0.0.1:3210`，使用 SQLite 与真实任务接口。
+- 视觉演示：以 `file://` 打开 `index.html`，不需要启动服务，保留模拟交互。
+- 真实流程测试：从仓库根目录运行 `node prototype/verify-backend.cjs`。
 
 仅面向桌面端，支持 1024px 及以上宽度的桌面窗口；不提供移动端入口或手机布局。
 
@@ -50,6 +54,16 @@
 
 ## 验证与截图
 
+连接 Spring Boot 后，右下角分支按钮进入 Git 图形工作区；设置 → 模型进入供应商卡片页，
+输入框旁的模型按钮可以快速切换配置。两个界面使用实际后端接口，需要通过 HTTP 预览。
+供应商配置参考 CC Switch 的组织方式，支持多配置、独立凭据、测试、复制与启用。
+Git 支持变更审查、暂存提交、还原、分支、历史图与基础远端操作；高级冲突合并尚未接入。
+原有工作树管理仍可在设置 → Git 与工作树中打开。
+
+在仓库根目录运行 `node prototype/verify-backend.cjs` 可验证真实后端交互，
+截图生成于 `.runtime/git-workspace.png`、`.runtime/git-history.png`、
+`.runtime/model-providers.png` 和 `.runtime/provider-editor-small.png`。
+
 执行 `node verify.cjs` 进行浏览器交互检查并生成截图。脚本使用本机 Microsoft Edge；其他环境需要调整浏览器路径。
 
 执行 `node verify-settings.cjs` 检查记忆范围隔离、继承、任务快照、扩展／钩子／连接管理、主题保存、桌宠画布与动画、拖动、勿扰、配置持久化和桌面布局。
@@ -83,3 +97,22 @@
 - `screenshots/37-schedules-dark.png`：定时任务的深色主题。
 
 后续优先确认：信息密度、产物面板默认展开策略、需求确认后是否才进入开发阶段。
+
+
+### 知识库：本机导入、预览与检索
+
+知识库支持多文件上传（每次最多 20 个文件，每个最多 10 MB），保留原文件，并按全局 / 项目范围保存。PDF、DOCX、DOC、XLS/XLSX、PPT/PPTX、ODT/ODS/ODP、RTF 和 UTF-8 文本由本机解析；扫描 PDF 可保存预览，但尚未集成 OCR。
+
+预览为可关闭的独立弹窗：PDF 支持分页和缩放，DOCX 提供浏览器排版预览，Markdown 提供安全渲染，其余 Office 文件提供提取文本预览及原文件下载。DOCX 的复杂字体、分页可能与 Word 不同；不是所有格式都提供原始版式。预览组件按需加载，不使用在线预览服务。Markdown / DOCX 在禁用脚本和外部资源的 iframe 中呈现。
+
+检索目前使用 SQLite FTS5 BM25，中文采用字与双字分词，文档按段落切片。检索结果携带文档及片段序号，尚无 PDF 页码引用。更新、删除资料会同步更新索引，检索遵守项目与全局范围。BM25 无须模型或密钥。
+
+“检索设置”可保存 Embedding / Rerank 服务地址、模型与凭据草稿，支持复用供应商凭据；当前不启用云端调用、向量索引或语义重排。启用外部模型前需明确服务目的地及允许发送的文档片段 / 查询范围。Rerank 为可选能力，与 BM25 不同。
+
+组件与许可：
+- Apache Tika 3.2.3 Office 模块（Apache-2.0）：https://tika.apache.org/3.2.3/formats.html
+- PDF.js 6.3.289（Apache-2.0）：https://mozilla.github.io/pdf.js/
+- docx-preview 0.4.1（Apache-2.0）：https://github.com/VolodymyrBaydalka/docxjs
+- Marked 18.0.14（MIT）、DOMPurify 3.4.16（Apache-2.0 或 MPL-2.0）、JSZip（MIT 或 GPL-3.0）。打包应保留依赖许可文件。
+
+验证：`KnowledgeIntegrationTest` 覆盖文件解析、原始字节下载、无文本 PDF、异常文件、中文 BM25、项目隔离、索引删除和设置草稿。构建后执行 `node prototype/verify-knowledge.cjs`（仓库根目录），在临时数据目录验证 10 种格式批量导入、PDF 翻页缩放、DOCX / Markdown 隔离预览、桌面布局、重启恢复和零外部网络请求。

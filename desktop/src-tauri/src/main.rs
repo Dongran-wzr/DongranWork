@@ -1,46 +1,136 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{env, fs, path::PathBuf, process::{Child, Command, Stdio}, sync::Mutex, thread, time::Duration};
+use std::{
+    env, fs,
+    net::TcpListener,
+    path::PathBuf,
+    process::{Child, Command, Stdio},
+    sync::Mutex,
+    thread,
+    time::Duration,
+};
 use tauri::{Manager, RunEvent};
 
 struct Backend(Mutex<Option<Child>>);
 
-fn backend_jar(app: &tauri::AppHandle) -> PathBuf {
+fn repository_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|path| path.parent())
+        .expect("desktop crate must be inside the repository")
+        .to_path_buf()
+}
+
+fn backend_jar(app: &tauri::AppHandle) -> Result<PathBuf, Box<dyn std::error::Error>> {
     if cfg!(debug_assertions) {
-        PathBuf::from(env::var("DONGRAN_BACKEND_JAR").unwrap_or_else(|_| "backend/target/dongran-backend-0.1.0-SNAPSHOT.jar".into()))
+        Ok(env::var_os("DONGRAN_BACKEND_JAR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| {
+                repository_root().join("backend/target/dongran-backend-0.1.0-SNAPSHOT.jar")
+            }))
     } else {
-        app.path().resource_dir().unwrap().join("backend/target/dongran-backend-0.1.0-SNAPSHOT.jar")
+        Ok(app.path().resource_dir()?.join("resources/backend.jar"))
     }
 }
 
-fn start_backend(app: &tauri::AppHandle) -> Result<Child, Box<dyn std::error::Error>> {
-    let jar = backend_jar(app);
-    if !jar.exists() { return Err(format!("backend JAR not found: {}", jar.display()).into()); }
+fn sandbox_helper(app: &tauri::AppHandle) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let name = if cfg!(target_os = "windows") {
+        "dongran-sandbox.exe"
+    } else {
+        "dongran-sandbox"
+    };
+    if cfg!(debug_assertions) {
+        Ok(env::var_os("DONGRAN_SANDBOX_HELPER")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| repository_root().join("sandbox/target/release").join(name)))
+    } else {
+        // A packaged helper is an application resource, never a binary found on PATH
+        // or a user-selectable executable from the opened project.
+        Ok(app.path().resource_dir()?.join("resources/sandbox").join(name))
+    }
+}
+
+fn start_backend(
+    app: &tauri::AppHandle,
+) -> Result<(Child, String), Box<dyn std::error::Error>> {
+    let jar = backend_jar(app)?;
+    if !jar.is_file() {
+        return Err(format!("backend JAR not found: {}", jar.display()).into());
+    }
+    let helper = sandbox_helper(app)?;
     let data = app.path().app_data_dir()?;
     fs::create_dir_all(&data)?;
-    let port = env::var("DONGRAN_PORT").unwrap_or_else(|_| "3210".into());
-    let child = Command::new("java")
+    let port: u16 = env::var("DONGRAN_PORT")
+        .unwrap_or_else(|_| "3210".into())
+        .parse()?;
+    if port == 0 {
+        return Err("DONGRAN_PORT must be between 1 and 65535".into());
+    }
+    // Do not attach the desktop UI to an unrelated process occupying the port.
+    let listener = TcpListener::bind(("127.0.0.1", port))?;
+    drop(listener);
+    let url = format!("http://127.0.0.1:{port}");
+    let mut command = Command::new("java");
+    command
         .arg("-XX:MaxRAMPercentage=40")
-        .arg("-jar").arg(jar)
-        .env("DONGRAN_PORT", &port)
-        .env("DONGRAN_DATA_DIR", data)
-        .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn()?;
-    for _ in 0..100 {
-        if let Ok(response) = ureq::get(&format!("http://127.0.0.1:{port}/api/health")).call() {
-            if response.status() == 200 { return Ok(child); }
+        .arg("-jar")
+        .arg(jar)
+        .arg(format!("--server.port={port}"))
+        .arg(format!("--dongran.data-dir={}", data.display()))
+        .arg(format!("--dongran.sandbox-helper={}", helper.display()))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+    let mut child = command.spawn()?;
+    for _ in 0..300 {
+        if let Some(status) = child.try_wait()? {
+            return Err(format!("backend exited before becoming ready: {status}").into());
+        }
+        if let Ok(response) = ureq::get(&format!("{url}/api/health")).call() {
+            if response.status() == 200 {
+                return Ok((child, url));
+            }
         }
         thread::sleep(Duration::from_millis(100));
     }
-    Err("backend did not become ready within 10 seconds".into())
+    let _ = child.kill();
+    let _ = child.wait();
+    Err("backend did not become ready within the startup deadline".into())
 }
 
 fn main() {
     let builder = tauri::Builder::default().setup(|app| {
-        let child = start_backend(app.handle()).map_err(|error| error.to_string())?;
+        let (mut child, url) = start_backend(app.handle()).map_err(|error| error.to_string())?;
+        // Both development and packaged windows use the authenticated backend
+        // origin. Bundled static files alone cannot serve relative API requests.
+        if let Some(window) = app.get_webview_window("main") {
+            if let Err(error) = window.navigate(url.parse()?) {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(error.into());
+            }
+        }
         app.manage(Backend(Mutex::new(Some(child))));
         Ok(())
     });
-    builder.build(tauri::generate_context!()).expect("error while building tauri application").run(|app, event| {
-        if let RunEvent::ExitRequested { api, .. } = event { api.prevent_exit(); if let Some(state) = app.try_state::<Backend>() { if let Some(mut child) = state.0.lock().unwrap().take() { let _ = child.kill(); let _ = child.wait(); } } app.exit(0); }
-    });
+    builder
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let RunEvent::ExitRequested { api, .. } = event {
+                api.prevent_exit();
+                if let Some(state) = app.try_state::<Backend>() {
+                    if let Some(mut child) = state.0.lock().unwrap().take() {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                    }
+                }
+                app.exit(0);
+            }
+        });
 }

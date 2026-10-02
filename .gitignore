@@ -22,3 +22,5 @@ Thumbs.db
 .tools/
 .runtime/
 backend/data/
+desktop/src-tauri/resources/
+desktop/src-tauri/gen/

@@ -9,14 +9,20 @@
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-jdbc</artifactId></dependency>
     <dependency><groupId>org.xerial</groupId><artifactId>sqlite-jdbc</artifactId><version>3.51.3.0</version></dependency>
     <dependency><groupId>org.apache.pdfbox</groupId><artifactId>pdfbox</artifactId><version>3.0.8</version></dependency>
+    <dependency><groupId>org.apache.tika</groupId><artifactId>tika-core</artifactId><version>3.2.3</version></dependency>
+    <dependency><groupId>org.apache.tika</groupId><artifactId>tika-parser-microsoft-module</artifactId><version>3.2.3</version></dependency>
+    <dependency><groupId>org.apache.tika</groupId><artifactId>tika-parser-miscoffice-module</artifactId><version>3.2.3</version></dependency>
     <dependency><groupId>net.java.dev.jna</groupId><artifactId>jna-platform</artifactId><version>5.17.0</version></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
   </dependencies>
   <build>
     <resources>
       <resource><directory>src/main/resources</directory></resource>
-      <resource><directory>../prototype</directory><targetPath>static</targetPath><includes><include>*.html</include><include>*.css</include><include>*.js</include><include>node_modules/lucide/dist/umd/lucide.js</include></includes></resource>
+      <resource><directory>../prototype</directory><targetPath>static</targetPath><includes><include>*.html</include><include>*.css</include><include>*.js</include><include>node_modules/lucide/dist/umd/lucide.js</include><include>node_modules/pdfjs-dist/build/pdf.mjs</include><include>node_modules/pdfjs-dist/build/pdf.worker.mjs</include><include>node_modules/pdfjs-dist/cmaps/*</include><include>node_modules/pdfjs-dist/standard_fonts/*</include><include>node_modules/pdfjs-dist/wasm/*</include><include>node_modules/docx-preview/dist/docx-preview.min.js</include><include>node_modules/marked/lib/marked.umd.js</include><include>node_modules/dompurify/dist/purify.min.js</include><include>node_modules/jszip/dist/jszip.min.js</include></includes></resource>
     </resources>
-    <plugins><plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin></plugins>
+    <plugins><plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin><plugin>
+ <groupId>com.diffplug.spotless</groupId><artifactId>spotless-maven-plugin</artifactId><version>2.43.0</version>
+ <configuration><java><googleJavaFormat><version>1.22.0</version></googleJavaFormat><removeUnusedImports/></java></configuration>
+</plugin></plugins>
   </build>
 </project>

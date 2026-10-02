@@ -4,8 +4,6 @@
   "version": "0.1.0",
   "identifier": "com.dongran.work",
   "build": {
-    "beforeDevCommand": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-backend.ps1",
-    "devUrl": "http://127.0.0.1:3210",
     "frontendDist": "../../backend/target/classes/static"
   },
   "app": {
@@ -25,7 +23,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "resources": ["backend/target/dongran-backend-0.1.0-SNAPSHOT.jar"]
+    "resources": { "resources/": "resources/" }
   },
   "plugins": { "shell": { "open": true } }
 }

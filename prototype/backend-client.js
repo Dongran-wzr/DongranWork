@@ -13,21 +13,27 @@
     bootPromise = (async () => {
       try {
         const health = await fetch(`${state.base}/api/health`, { cache: 'no-store' });
-        if (!health.ok) return null;
+        if (!health.ok) throw new Error('本地服务未就绪');
         await json(await fetch(`${state.base}/api/session`, { method: 'POST', credentials: 'include', headers: { 'X-Dongran-Client': 'desktop' } }));
         const bootstrap = await json(await fetch(`${state.base}/api/bootstrap`, { credentials: 'include', headers: { 'X-Dongran-Client': 'desktop' } }));
         state.available = true; state.session = true; state.boot = bootstrap;
         window.dispatchEvent(new CustomEvent('backendready', { detail: bootstrap }));
         return bootstrap;
-      } catch { return null; }
+      } catch (error) { state.available=false; state.error=error.message; bootPromise=null; return null; }
     })();
     return bootPromise;
   }
   async function request(path, options = {}) {
     if (!state.available) await connect();
     if (!state.available) throw Object.assign(new Error('本地服务尚未启动。'), { code: 'BACKEND_UNAVAILABLE' });
-    const headers = { 'X-Dongran-Client': 'desktop', ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) };
-    return json(await fetch(`${state.base}${path}`, { ...options, headers, credentials: 'include' }));
+    const headers = { 'X-Dongran-Client': 'desktop', ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) };
+    let response=await fetch(`${state.base}${path}`, { ...options, headers, credentials: 'include' });
+    if(response.status===401){
+      bootPromise=null;state.available=false;
+      await connect();
+      if(state.available)response=await fetch(`${state.base}${path}`, { ...options, headers, credentials: 'include' });
+    }
+    return json(response);
   }
   function events(taskId, options = {}) {
     if (!state.available) throw Object.assign(new Error('本地服务尚未启动。'), { code: 'BACKEND_UNAVAILABLE' });

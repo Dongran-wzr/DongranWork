@@ -18,6 +18,7 @@
   }
 
   function renderKnowledge() {
+    if(window.DongranRuntime?.enabled)return window.DongranRuntime.knowledge(content);
     content.innerHTML = `<div class="knowledge-page">
       <header class="knowledge-heading"><h1 id="workspace-page-title" tabindex="-1">知识库</h1><span class="workspace-pending"><i data-lucide="plug"></i>待接入</span></header>
       <div class="knowledge-context"><i data-lucide="folder-open"></i><span id="knowledge-project"></span></div>

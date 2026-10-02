@@ -102,6 +102,7 @@ const appMenuChoices = {
 };
 function openChoiceMenu(trigger) {
   const kind = trigger.dataset.menu;
+  if(kind==='model'&&window.DongranRuntime?.enabled){window.DongranProviders.menu(trigger);return;}
   if (appMenuChoices[kind]) {
     window.DongranUI.showMenu(trigger, {...appMenuChoices[kind], onSelect:value => actions[value]?.()});
     return;
@@ -122,6 +123,7 @@ function renderSidebar(){
   $('#task-list').innerHTML=state.tasks.length ? '<div class="task-group">今天</div>'+state.tasks.map(t=>`<button class="task-item ${t.id===state.active?'active':''}" data-task="${t.id}">${icon(t.done?'circle-check':'message-square')}<span>${escapeHtml(t.title)}</span>${t.id===state.active?'<span class="dot"></span>':''}</button>`).join(''):'<div class="empty-tasks">还没有任务</div>';
 }
 function welcome(){
+  if(window.DongranRuntime?.enabled)return window.DongranRuntime.home();
   window.DongranPages?.close();
   setTaskTitle('新的任务'); $('#composer-area').hidden=false; $('.conversation').classList.add('start-view'); setPanel(false);
   $('#messages').innerHTML=`<div class="start-content"><div class="project-study activity-map"></div><h1>Dongran</h1><p class="start-question">今天，我们推进哪个项目？</p><div class="start-actions"><button class="secondary" data-action="open-directory">${icon('folder-open')}打开项目目录</button></div><div class="recent-projects"><div class="recent-label"><span>最近项目</span><span>本地</span></div><button class="project-row" data-action="demo">${icon('folder')}<span><strong>dongran-console</strong><small>D:\\Projects\\dongran-console</small></span><time>演示项目</time>${icon('chevron-right')}</button></div></div>`;
@@ -140,6 +142,7 @@ function openProject(name, sample=false, projectId){
   if(state.pendingPrompt){const draft=state.pendingPrompt;state.pendingPrompt='';newTask();$('#prompt').value=draft;submitTask({preventDefault(){}});}
 }
 function newTask(){
+  if(window.DongranRuntime?.enabled)window.DongranRuntime.detach();
   if(window.DongranSettings&&!$('#settings-screen').hidden){window.DongranSettings.close().then(closed=>{if(closed)newTask();});return;}
   window.DongranPages?.close();
   if(!state.project){welcome();$('#prompt').focus();return;}
@@ -147,9 +150,11 @@ function newTask(){
   state.active=null; setTaskTitle('新建任务'); $('#composer-area').hidden=false; $('#send').innerHTML=icon('arrow-up'); $('#send').title='发送任务'; $('#prompt').value=''; state.attachments=[]; renderAttachments(); setPanel(false);
   $('#messages').innerHTML=`<div class="start-content"><div class="project-study activity-map"></div><h1>开始新的任务</h1><p class="start-question">${escapeHtml(state.project)}</p><div class="start-suggestions"><button data-suggestion="梳理当前项目的业务流程，生成一份需求文档">${icon('file-text')}梳理产品需求</button><button data-suggestion="理解项目结构，规划并实现一个新功能">${icon('code-2')}实现新功能</button><button data-suggestion="检查当前项目的测试情况，整理验证计划">${icon('flask-conical')}验证项目</button></div></div>`;
   window.DongranActivity.render($('.activity-map'),{projectId:projectContext?.id,sample:projectContext?.sample===true});
+  if(window.DongranRuntime?.enabled)window.DongranRuntime.activity();
   renderSidebar(); icons(); $('#prompt').focus();
 }
 function renderTask(){
+  if(window.DongranRuntime?.enabled)return window.DongranRuntime.renderTask();
   const t=task(); if(!t){newTask();return;}
   $('.conversation').classList.remove('start-view');
   setTaskTitle(t.title); $('#composer-area').hidden=false;
@@ -160,6 +165,7 @@ function renderTask(){
   renderSidebar(); icons();
 }
 function renderInspector(){
+  if(window.DongranRuntime?.enabled)return window.DongranRuntime.inspector();
   const t=task(); $('#artifact-total').textContent=t?.sample?'3':'0';
   document.querySelectorAll('.tabs button').forEach(b=>{b.classList.toggle('active',b.dataset.tab===state.tab);b.setAttribute('aria-selected',String(b.dataset.tab===state.tab));});
   $('#artifact-status').textContent=t?.done?'项目内产物 · 验证通过':'项目内产物 · 等待审查';
@@ -177,8 +183,10 @@ function renderInspector(){
   }
   icons();
 }
-function showProjects(){showDialog('打开项目',`<button class="primary" data-action="open-directory">${icon('folder-open')}选择本地目录</button><div class="recent-label"><span>最近项目</span></div><button class="project-row" data-action="demo">${icon('folder')}<span><strong>dongran-console</strong><small>D:\\Projects\\dongran-console</small></span><time>演示项目</time>${icon('chevron-right')}</button>`);}
+function showProjects(){
+  if(window.DongranRuntime?.enabled)return window.DongranRuntime.projects();showDialog('打开项目',`<button class="primary" data-action="open-directory">${icon('folder-open')}选择本地目录</button><div class="recent-label"><span>最近项目</span></div><button class="project-row" data-action="demo">${icon('folder')}<span><strong>dongran-console</strong><small>D:\\Projects\\dongran-console</small></span><time>演示项目</time>${icon('chevron-right')}</button>`);}
 async function pickDirectory(){
+  if(window.DongranRuntime?.enabled)return window.DongranRuntime.directory();
   if(window.showDirectoryPicker){
     try{const handle=await window.showDirectoryPicker({mode:'read'}); const entries=[]; for await(const [name,entry] of handle.entries()){entries.push({name,kind:entry.kind});} const projectId=await identifyDirectory(handle);state.files=entries;openProject(handle.name,false,projectId);toast('已打开目录：'+handle.name);}
     catch(error){if(error.name!=='AbortError')$('#directory-input').click();}
@@ -191,6 +199,7 @@ function runTests(){
 }
 function renderAttachments(){ $('#attachment-list').innerHTML=state.attachments.map((a,i)=>`<span class="attachment">${icon('file')} ${escapeHtml(a.name)}<button type="button" data-remove="${i}" title="移除附件" aria-label="移除附件">${icon('x')}</button></span>`).join('');icons(); }
 function submitTask(event){
+  if(window.DongranRuntime?.enabled){event.preventDefault();return window.DongranRuntime.submit();}
   event.preventDefault();const current=task();
   if(current?.running){clearTimeout(state.timer);current.running=false;current.stopped=true;renderTask();renderInspector();toast('已停止执行');return;}
   const value=$('#prompt').value.trim();if(!value)return;
@@ -206,6 +215,7 @@ function submitTask(event){
 }
 function searchDialog(){showDialog('搜索任务','<input class="search-input" id="search-input" placeholder="输入任务名称…" aria-label="搜索任务"><div id="search-results"></div>');const search=()=>{$('#search-results').innerHTML=state.tasks.filter(t=>t.title.toLowerCase().includes($('#search-input').value.toLowerCase())).map(t=>`<button class="project-row" data-task="${t.id}">${icon('message-square')}<span>${escapeHtml(t.title)}</span>${icon('chevron-right')}</button>`).join('')||'<div class="empty-note">没有匹配的任务</div>';icons();};$('#search-input').addEventListener('input',search);search();$('#search-input').focus();}
 const actions={
+  'git-workspace':()=>window.DongranRuntime?.enabled?window.DongranGit.open():toast('连接本地服务并打开项目后使用 Git 工作区。'),
   projects:showProjects,demo:()=>openProject('dongran-console',true),'open-directory':pickDirectory,new:newTask,search:searchDialog,
   knowledge:()=>window.DongranPages.open('knowledge'),schedules:()=>window.DongranPages.open('schedules'),
   files:()=>{if(!state.project){showProjects();return;}window.DongranPages?.close();state.tab='files';setPanel(true);renderInspector();},
@@ -218,7 +228,7 @@ const actions={
   'toggle-sidebar':()=>{closeDialog();actions.sidebar();},
   fullscreen:async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{toast('当前浏览器不支持全屏');}},
   about:()=>showDialog('关于', '<h3 class="about-title">Dongran</h3><p class="about-meta">项目工作台 · Prototype 0.2<br>本地交互原型，Agent 与终端使用演示数据。</p>'),
-  team:()=>showDialog('Agent 团队',`<div class="team-directory"><div class="team"><span class="agent-avatar lead">${icon('sparkles')}</span><div><strong>主 Agent</strong><small>任务规划与协作调度</small></div><span class="online"></span></div><div class="team"><span class="agent-avatar product">P</span><div><strong>产品 Agent</strong><small>需求文档与验收标准</small></div></div><div class="team"><span class="agent-avatar developer">D</span><div><strong>开发 Agent</strong><small>代码实现与变更审查</small></div></div><div class="team"><span class="agent-avatar tester">T</span><div><strong>测试 Agent</strong><small>运行验证与结果分析</small></div></div></div>`),
+  team:async()=>{if(window.DongranRuntime?.enabled){try{const id=window.DongranProjects.current()?.id;if(id){const tasks=await window.DongranRuntime.request('/api/tasks?projectId='+encodeURIComponent(id));const active=tasks.find(t=>['queued','running','awaiting_approval'].includes(t.status));if(active){const plan=await window.DongranRuntime.request('/api/tasks/'+active.id+'/team');showDialog('当前 Agent 团队',`<p class="team-summary">${escapeHtml(plan.summary)}</p><div class="team-directory"><div class="team"><span class="agent-avatar lead">${icon('sparkles')}</span><div><strong>主 Agent</strong><small>拆解任务、调度协作者、复核结果</small></div><span class="online"></span></div>${plan.specialists.map(s=>`<div class="team"><span class="agent-avatar specialist">${escapeHtml(s.label.slice(0,1))}</span><div><strong>${escapeHtml(s.label)}</strong><small>${escapeHtml(s.purpose)} · ${escapeHtml(s.reason)}</small></div><span class="online"></span></div>`).join('')}</div>`);return;}}}catch(error){toast(error.message);}showDialog('Agent 团队',`<div class="team-directory"><div class="team"><span class="agent-avatar lead">${icon('sparkles')}</span><div><strong>主 Agent</strong><small>根据任务意图动态选择专业协作者</small></div><span class="online"></span></div><p class="empty-note">开始一个任务后，这里会显示本次任务实际启用的专业角色。</p></div>`)}} ,
   'close-dialog':closeDialog,attach:()=>$('#file-input').click(),run:runTests,
   settings:()=>window.DongranSettings.open(),
   account:()=>window.DongranSettings.open('account'),
@@ -229,14 +239,19 @@ document.addEventListener('click',(event)=>{
   const button=event.target.closest('button');if(!button||button.disabled)return;
   if(button.dataset.menu){openChoiceMenu(button);return;}
   if(button.dataset.action){actions[button.dataset.action]?.(button);return;}
-  if(button.dataset.task){window.DongranPages?.close();state.active=Number(button.dataset.task);closeDialog();$('.sidebar').classList.remove('open');renderTask();renderInspector();return;}
+  if(button.dataset.task){window.DongranPages?.close();state.active=window.DongranRuntime?.enabled?button.dataset.task:Number(button.dataset.task);closeDialog();$('.sidebar').classList.remove('open');renderTask();renderInspector();return;}
   if(button.dataset.tab){window.DongranPages?.close();state.tab=button.dataset.tab;setPanel(true);renderInspector();return;}
   if(button.dataset.suggestion){$('#prompt').value=button.dataset.suggestion;$('#prompt').focus();return;}
   if(button.dataset.remove!==undefined){state.attachments.splice(Number(button.dataset.remove),1);renderAttachments();return;}
   if(button.dataset.file!==undefined){if(task()?.sample){state.tab=Number(button.dataset.file)===0?'doc':'diff';renderInspector();}else toast(state.files[Number(button.dataset.file)]?.name||'文件');}
 });
 $('#composer').addEventListener('submit',submitTask);
-$('#prompt').addEventListener('keydown',e=>{if(e.isComposing||e.key!=='Enter')return;const useEnter=window.DongranSettings?.get('sendKey')==='enter';if((useEnter&&!e.shiftKey)||(!useEnter&&(e.ctrlKey||e.metaKey)))submitTask(e);});
+$('#prompt').addEventListener('keydown',e=>{
+  if(e.isComposing||e.keyCode===229||e.key!=='Enter'||e.shiftKey)return;
+  e.preventDefault();
+  if(task()?.running){toast('当前回答仍在生成，输入内容已保留。');return;}
+  submitTask(e);
+});
 $('#file-input').addEventListener('change',e=>{state.attachments.push(...Array.from(e.target.files));renderAttachments();e.target.value='';});
 $('#directory-input').addEventListener('change',e=>{const files=Array.from(e.target.files);if(!files.length)return;state.files=files;openProject(files[0].webkitRelativePath.split('/')[0]);toast('已打开目录，共 '+files.length+' 个文件');e.target.value='';});
 $('#dialog').addEventListener('click',event=>{if(event.target===$('#dialog')){const r=$('#dialog').getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeDialog();}});
@@ -269,7 +284,7 @@ function applyWorkspacePreferences(event) {
   root.dataset.showSuggestions=String(prefs.showSuggestions);
   root.style.setProperty('--ui-font-size',`${prefs.fontSize}px`);
   $('.sidebar').style.width=`${prefs.sidebarWidth}px`;
-  if(['init','import','reset','reset-category','defaultModel'].includes(event.detail.key)){state.model=prefs.defaultModel;$('#model-label').textContent=state.model;}
+  if(['init','import','reset','reset-category','defaultModel'].includes(event.detail.key)){state.model=prefs.defaultModel;$('#model-label').textContent=state.model;window.DongranRuntime?.enabled&&window.DongranProviders?.sync();}
   if(['init','import','reset','reset-category','permissionMode'].includes(event.detail.key)){$('#mode').value=prefs.permissionMode;$('#mode-label').textContent=prefs.permissionMode;}
   if(event.detail.key==='artifactPanel'&&task()?.sample){setPanel(prefs.artifactPanel==='auto');renderInspector();}
   applyTaskPreferences();

@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="ui.css">
   <link rel="stylesheet" href="desktop.css">
   <link rel="stylesheet" href="settings.css">
+  <link rel="stylesheet" href="sandbox.css">
   <link rel="stylesheet" href="settings-memory.css">
   <link rel="stylesheet" href="settings-integrations.css">
   <link rel="stylesheet" href="settings-personalization.css">
@@ -17,19 +18,28 @@
   <link rel="stylesheet" href="settings-account.css">
   <link rel="stylesheet" href="workspace-pages.css">
   <link rel="stylesheet" href="scheduled-tasks.css">
+  <link rel="stylesheet" href="knowledge.css">
   <script defer src="node_modules/lucide/dist/umd/lucide.js"></script>
   <script defer src="ui.js"></script>
   <script defer src="backend-client.js"></script>
   <script defer src="activity.js"></script>
   <script defer src="app.js"></script>
   <script defer src="terminal.js"></script>
+  <script defer src="sandbox.js"></script>
   <script defer src="settings-memory.js"></script>
   <script defer src="settings-integrations.js"></script>
   <script defer src="settings-personalization.js"></script>
   <script defer src="settings-account.js"></script>
+  <script defer src="settings-search.js"></script>
   <script defer src="settings.js"></script>
   <script defer src="scheduled-tasks.js"></script>
   <script defer src="workspace-pages.js"></script>
+  <script defer src="knowledge-preview.js"></script>
+  <script defer src="knowledge-settings.js"></script>
+  <link rel="stylesheet" href="runtime.css">
+  <link rel="stylesheet" href="developer-tools.css">
+  <script defer src="git-workspace.js"></script>
+  <script defer src="model-providers.js"></script>
 </head>
 <body>
   <div class="desktop-bar">
@@ -65,10 +75,10 @@
           <div id="composer-area" class="composer-area" hidden>
             <div id="attachment-list" class="attachment-list"></div>
             <form id="composer" class="composer">
-              <textarea id="prompt" rows="3" placeholder="描述你的需求，交给主 Agent…" aria-label="任务内容"></textarea>
+              <textarea id="prompt" rows="3" placeholder="描述你的需求，交给主 Agent…" aria-label="任务内容" aria-description="Enter 发送，Shift + Enter 换行"></textarea>
               <div class="composer-toolbar"><div class="toolbar-group"><button type="button" class="icon-btn add-context" data-action="projects" title="选择项目" aria-label="选择项目"><i data-lucide="plus"></i></button><button type="button" class="icon-btn" data-action="attach" title="添加文件" aria-label="添加文件"><i data-lucide="paperclip"></i></button><input id="mode" type="hidden" value="修改前询问"><button id="mode-trigger" type="button" class="permission-picker" data-menu="permissions" data-field="mode" aria-label="执行权限" aria-haspopup="menu" aria-expanded="false"><i data-lucide="shield-check"></i><span id="mode-label">修改前询问</span><i data-lucide="chevron-down"></i></button></div><div class="toolbar-group"><button id="model-trigger" type="button" class="model-picker" data-menu="model" title="模型设置" aria-label="选择模型" aria-haspopup="menu" aria-expanded="false"><i data-lucide="sparkles"></i><span id="model-label">Auto</span><i data-lucide="chevron-down"></i></button><button id="send" class="send-btn" type="submit" title="发送任务" aria-label="发送任务"><i data-lucide="arrow-up"></i></button></div></div>
             </form>
-            <div class="composer-meta"><button data-action="projects"><i data-lucide="folder-open"></i><span id="context-project">选择项目目录</span><i data-lucide="chevron-down"></i></button><span><i data-lucide="git-branch"></i><span id="branch-name">未连接项目</span></span></div>
+            <div class="composer-meta"><span class="composer-shortcut">Enter 发送 · Shift + Enter 换行</span><button data-action="projects"><i data-lucide="folder-open"></i><span id="context-project">选择项目目录</span><i data-lucide="chevron-down"></i></button><button id="git-status-button" data-action="git-workspace" aria-haspopup="dialog" title="打开 Git 工作区"><i data-lucide="git-branch"></i><span id="branch-name">未连接项目</span><i data-lucide="chevron-down"></i></button></div>
           </div>
         </section>
         <aside id="inspector" class="inspector" hidden>
@@ -90,5 +100,9 @@
   <input id="directory-input" type="file" webkitdirectory multiple hidden>
   <input id="file-input" type="file" multiple hidden>
   <div id="toast" class="toast" role="status" hidden></div>
+  <script defer src="node_modules/marked/lib/marked.umd.js"></script>
+  <script defer src="node_modules/dompurify/dist/purify.min.js"></script>
+  <script defer src="chat-markdown.js"></script>
+  <script defer src="runtime.js"></script>
 </body>
 </html>

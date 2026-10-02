@@ -9,7 +9,6 @@
   const choices = values => values.map(value => typeof value === 'string' ? {value, label:value} : value);
   const modules = window.DongranSettingsModules || [];
   const definitions = [
-    {key:'sendKey', category:'general', section:'任务与工具', title:'发送任务的快捷键', description:'选择发送消息的按键组合。', icon:'send', type:'select', default:'ctrl-enter', options:choices([{value:'ctrl-enter',label:'Ctrl + Enter'},{value:'enter',label:'Enter'}])},
     {key:'artifactPanel', category:'general', section:'任务与工具', title:'产物面板打开方式', description:'生成文档、代码变更和验证结果后的默认打开方式。', icon:'panel-right', type:'select', default:'manual', options:choices([{value:'manual',label:'手动打开'},{value:'auto',label:'自动展开'}])},
     {key:'showToolCount', category:'general', section:'任务与工具', title:'显示工具调用次数', description:'在折叠的执行记录中显示工具调用数量。', icon:'chart-no-axes-column-increasing', type:'toggle', default:true},
     {key:'expandTools', category:'general', section:'任务与工具', title:'默认展开执行记录', description:'查看 Agent 的文件读取、代码修改与运行记录。', icon:'list-tree', type:'toggle', default:false},
@@ -31,8 +30,8 @@
     {key:'contextWindow', category:'models', section:'生成参数', title:'上下文上限', description:'每次任务可使用的最大上下文 token 数。', icon:'scan-text', type:'number', default:32768, min:4096, max:131072, step:1024, unit:'tokens'},
 
     {key:'autoDelegate', category:'agents', section:'任务协作', title:'自动分配任务', description:'主 Agent 根据任务需要安排专业 Agent。', icon:'workflow', type:'toggle', default:true},
-    {key:'parallelAgents', category:'agents', section:'任务协作', title:'同时执行的 Agent 数量', description:'限制可并行工作的 Agent 数量。', icon:'network', type:'range', default:3, min:1, max:4, step:1},
-    {key:'confirmPlan', category:'agents', section:'任务协作', title:'执行前确认计划', description:'主 Agent 完成任务拆解后，先等待确认。', icon:'list-checks', type:'toggle', default:true},
+    {key:'parallelAgents', category:'agents', section:'任务协作', title:'同时运行的任务数量', description:'限制并行任务数；任务内部由主 Agent 按需调度专业 Agent。', icon:'network', type:'range', default:3, min:1, max:4, step:1},
+    {key:'confirmPlan', category:'agents', section:'任务协作', title:'执行前确认计划', description:'首次写文件或运行命令前确认具体操作；普通问答不触发。', icon:'list-checks', type:'toggle', default:true},
     {key:'enableProduct', category:'agents', section:'专业 Agent', title:'产品 Agent', description:'梳理需求、业务流程与验收标准。', icon:'notebook-pen', type:'toggle', default:true},
     {key:'enableDeveloper', category:'agents', section:'专业 Agent', title:'开发 Agent', description:'理解项目结构、修改代码与整理变更。', icon:'code-2', type:'toggle', default:true},
     {key:'enableTester', category:'agents', section:'专业 Agent', title:'测试 Agent', description:'制定测试计划、运行验证与汇总结果。', icon:'flask-conical', type:'toggle', default:true},
@@ -40,7 +39,7 @@
 
     {key:'permissionMode', category:'permissions', section:'执行权限', title:'默认执行模式', description:'设置新任务的文件与命令权限。', icon:'shield-check', type:'select', default:'修改前询问', options:choices(['修改前询问','仅规划','允许项目内修改'])},
     {key:'commandApproval', category:'permissions', section:'执行权限', title:'运行命令前确认', description:'执行项目命令前，请求确认。', icon:'square-terminal', type:'toggle', default:true},
-    {key:'allowNetwork', category:'permissions', section:'执行权限', title:'允许网络访问', description:'允许 Agent 请求项目之外的网络资源。', icon:'globe', type:'toggle', default:false},
+    {key:'allowNetwork', category:'permissions', section:'执行权限', title:'允许工具网络访问', description:'控制支持此偏好的工具；当前版本的沙箱命令始终禁止联网，模型连接由本地服务管理。', icon:'globe', type:'toggle', default:false},
     {key:'excludedPaths', category:'permissions', section:'文件访问', title:'排除的路径', description:'每行一个路径，不作为项目上下文读取。', icon:'folder-lock', type:'textarea', default:'.env\nnode_modules\n.git', maxLength:12000},
 
     {key:'shell', category:'terminal', section:'终端偏好', title:'默认 Shell', description:'新终端会话使用的命令环境。', icon:'terminal', type:'select', default:'PowerShell', options:choices(['PowerShell','Command Prompt','Git Bash'])},
@@ -67,12 +66,12 @@
     {id:'shortcuts', label:'快捷键', icon:'keyboard', group:'个人偏好', subtitle:'设置常用操作的快捷键。'},
     {id:'models', label:'模型', icon:'cpu', group:'Agent 与项目', subtitle:'配置模型连接与生成偏好。', status:'待接入'},
     {id:'agents', label:'Agent 团队', icon:'bot', group:'Agent 与项目', subtitle:'设置主 Agent 的分工方式与专业能力。', status:'待接入'},
-    {id:'permissions', label:'权限与安全', icon:'shield-check', group:'Agent 与项目', subtitle:'管理任务执行与项目文件访问偏好。', status:'待接入'},
+    {id:'permissions', label:'权限与安全', icon:'shield-check', group:'Agent 与项目', subtitle:'查看命令沙箱状态，管理任务执行与项目文件访问。', searchKeywords:'sandbox 沙箱 隔离 执行助手'},
     {id:'terminal', label:'终端', icon:'square-terminal', group:'Agent 与项目', subtitle:'设置终端的命令环境与显示。'},
     {id:'git', label:'Git 与工作树', icon:'git-branch', group:'Agent 与项目', subtitle:'配置版本管理和任务工作目录。', status:'待接入'},
     {id:'data', label:'数据与配置', icon:'database', group:'管理', subtitle:'备份、迁移或重置你的个人偏好。'}
   ].concat(modules.flatMap(module => module.categories || []));
-  const categoryOrder = ['account','general','appearance','shortcuts','pet','models','agents','memory','permissions','terminal','git','extensions','hooks','connections','data'];
+  const categoryOrder = ['account','general','appearance','shortcuts','pet','models','agents','memory','permissions','terminal','git','extensions','hooks','connections','websearch','data'];
   categories.sort((left,right) => categoryOrder.indexOf(left.id) - categoryOrder.indexOf(right.id));
   const byKey = new Map(definitions.map(definition => [definition.key, definition]));
   const defaults = Object.freeze(Object.fromEntries(definitions.map(definition => [definition.key, definition.default])));
@@ -113,7 +112,7 @@
   }
 
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = /^https?:$/.test(location.protocol) ? null : localStorage.getItem(STORAGE_KEY);
     if (stored) settings = {...structuredClone(defaults), ...validateDocument(JSON.parse(stored))};
   } catch {
     saveError = '无法读取本机设置，已使用默认值。';
@@ -130,6 +129,7 @@
   }
 
   function persist() {
+    if(window.DongranRuntime?.enabled){showStatus('正在保存…');window.DongranRuntime.saveSettings(structuredClone(settings)).then(()=>{saveError='';showStatus('已保存到本机数据库');}).catch(error=>{saveError=error.message;showStatus('保存失败：'+saveError,true);});return;}
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({version:1, settings}));
       saveError = '';
@@ -217,11 +217,11 @@
     const category = categories.find(item => item.id === activeCategory);
     const content = document.getElementById('settings-content');
     const searchTerm = query.trim().toLocaleLowerCase();
-    const matches = definitions.filter(definition => !definition.hidden && (searchTerm ? [definition.title,definition.description,definition.section,categories.find(item => item.id === definition.category).label,definition.key].join(' ').toLocaleLowerCase().includes(searchTerm) : definition.category === activeCategory));
+    const matches = definitions.filter(definition => !definition.hidden && !(window.DongranRuntime?.enabled && definition.category==='models') && (searchTerm ? [definition.title,definition.description,definition.section,categories.find(item => item.id === definition.category).label,definition.key].join(' ').toLocaleLowerCase().includes(searchTerm) : definition.category === activeCategory));
     const extraMatches = [];
     if (searchTerm) {
       for (const item of categories) {
-        if (!modules.some(module => module.categories?.some(entry => entry.id === item.id)) && item.id !== 'appearance') continue;
+        if (!modules.some(module => module.categories?.some(entry => entry.id === item.id)) && item.id !== 'appearance' && !(item.id==='permissions' && window.DongranSandbox) && !(window.DongranRuntime?.enabled && item.id==='models')) continue;
         const keywords = [item.label,item.subtitle,item.searchKeywords,...definitions.filter(definition => definition.category === item.id && definition.hidden).map(definition => definition.title)].join(' ').toLocaleLowerCase();
         if (keywords.includes(searchTerm)) extraMatches.push(`<button type="button" class="settings-search-category" data-settings-category="${item.id}">${glyph(item.icon)}<span><strong>${item.label}</strong><small>${item.subtitle}</small></span>${glyph('chevron-right')}</button>`);
       }
@@ -237,9 +237,9 @@
     document.getElementById('settings-subtitle').textContent = searchTerm ? `${matches.length + extraMatches.length} 个设置项与“${query.trim()}”相关` : category.subtitle;
     const badge = document.getElementById('settings-category-status');
     badge.hidden = !!searchTerm || !category.status;
-    badge.textContent = category.status || '';
+    badge.textContent = window.DongranRuntime?.enabled && ['models','agents','memory','permissions','terminal','git','extensions','hooks','connections'].includes(activeCategory) ? '本地服务' : category.status || '';
     badge.title = '配置已保存，相关服务尚未接入';
-    document.getElementById('settings-reset-category').hidden = !!searchTerm || activeCategory === 'data' || category.resettable === false;
+    document.getElementById('settings-reset-category').hidden = !!searchTerm || activeCategory === 'data' || category.resettable === false || (window.DongranRuntime?.enabled && activeCategory==='models');
     if (!searchTerm && activeCategory === 'data') content.innerHTML = renderData();
     else if (searchTerm && !matches.length && !extraMatches.length) content.innerHTML = `<div class="settings-empty">${glyph('search')}<h2>没有找到相关设置</h2><p>试试“模型”“字号”或“权限”。</p></div>`;
     else if (searchTerm) content.innerHTML = `<section class="settings-section settings-search-results">${matches.map(definition => rowMarkup(definition,true)).join('')}${extraMatches.join('')}</section>`;
@@ -253,6 +253,8 @@
       if (activeCategory !== 'appearance') content.insertAdjacentHTML('beforeend',customContent);
       if (activeCategory === 'git') content.insertAdjacentHTML('afterbegin', `<div class="settings-project-context">${glyph('folder-git-2')}<div><strong>${escape(window.DongranProjects?.current()?.name || '尚未打开项目')}</strong><span>Git 状态待读取 · 配置适用于新任务</span></div><span class="settings-status-badge">未执行 Git 操作</span></div>`);
     }
+    if(!searchTerm)window.DongranRuntime?.settingsPanel(activeCategory,content);
+    if(!searchTerm && activeCategory==='permissions')window.DongranSandbox?.mount(content);
     renderNavigation();
     refreshIcons();
   }
@@ -378,7 +380,7 @@
       persist();
       renderContent();
       notify('import',null);
-      if (!saveError) showStatus('设置已导入并保存到本机');
+      if (!saveError && !window.DongranRuntime?.enabled) showStatus('设置已导入并保存到本机');
     } catch (error) {
       showStatus(error.message || '导入失败，请检查配置文件。',true);
     }
@@ -455,6 +457,13 @@
     close();
   });
 
-  window.DongranSettings = {open,close,get:key => structuredClone(settings[key]),set,reset,defaults,refresh};
+  function hydrate(values){
+    const accepted={};
+    for(const [key,value] of Object.entries(values||{})){const definition=byKey.get(key);if(definition&&validValue(definition,value))accepted[key]=value;}
+    settings={...structuredClone(defaults),...accepted};
+    if(!screen.hidden)renderContent();
+    notify('import',null);
+  }
+  window.DongranSettings = {hydrate,snapshot:()=>structuredClone(settings),open,close,get:key => structuredClone(settings[key]),set,reset,defaults,refresh};
   notify('init',null);
 })();

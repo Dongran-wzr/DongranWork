@@ -9,6 +9,8 @@
   const currentZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || '系统本地时间';
   const textWithin = (value,limit) => typeof value === 'string' && !!value.trim() && value.length <= limit;
   let tasks = [];
+  let revision = null;
+  let saving = false;
   let host = null;
   let filter = 'all';
   let query = '';
@@ -46,7 +48,7 @@
   }
 
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = /^https?:$/.test(location.protocol) ? null : localStorage.getItem(STORAGE_KEY);
     if (raw) {
       if (raw.length > 2000000) throw new Error('oversized');
       const saved = JSON.parse(raw);
@@ -57,7 +59,16 @@
     status='无法读取本机定时任务，当前显示空列表。';
   }
 
-  function persist(next) {
+  async function persist(next) {
+    if(saving){status='正在保存，请稍后再试。';return false;}
+    if(window.DongranRuntime?.enabled){
+      if (!validateDocument({version:1,tasks:next})) {status='配置格式无效，原配置已保留。';return false;}
+      saving=true;
+      try{const result=await window.DongranRuntime.request('/api/schedules','PUT',{tasks:next,revision});tasks=result.tasks;revision=result.revision;status='';return true;}
+      catch(error){status=error.message;if(error.status===409){try{const latest=await window.DongranRuntime.request('/api/schedules');tasks=latest.tasks;revision=latest.revision;}catch{}}return false;}
+      finally{saving=false;}
+    }
+
     if (!validateDocument({version:1,tasks:next})) {status='配置格式无效，原配置已保留。';return false;}
     try {
       localStorage.setItem(STORAGE_KEY,JSON.stringify({version:1,tasks:next}));
@@ -94,7 +105,7 @@
   function render(container) {
     host=container;
     if (!host) return;
-    host.innerHTML=`<div class="schedules-page" data-schedules-page><div class="schedules-page-inner"><header class="schedules-header"><div><h1 id="workspace-page-title" tabindex="-1">定时任务</h1><p>安排主 Agent 的重复工作与单次计划。</p></div><button id="schedule-add" type="button" class="schedules-create" data-schedule-command="add">${icon('plus')}新建任务</button></header><div class="schedules-service-state">${icon('clock-3')}<span>调度服务待接入</span><span class="schedules-state-separator"></span><span>计划仅保存在本机</span><span class="schedules-timezone">时区：${escape(currentZone())}</span></div><p id="schedule-storage-error" class="schedules-error" role="alert" ${status ? '' : 'hidden'}>${escape(status)}</p><div class="schedules-toolbar"><div class="schedules-tabs" role="tablist" aria-label="任务状态">${[['all','全部'],['enabled','已启用'],['paused','已暂停']].map(([value,label]) => `<button id="schedule-filter-${value}" type="button" role="tab" aria-selected="${filter === value}" tabindex="${filter === value ? 0 : -1}" data-schedule-filter="${value}">${label}<span>${value === 'all' ? tasks.length : tasks.filter(task => value === 'enabled' ? task.enabled : !task.enabled).length}</span></button>`).join('')}</div><div class="schedules-search">${icon('search')}<input id="schedule-search" type="search" placeholder="搜索定时任务..." aria-label="搜索定时任务" value="${escape(query)}"><button id="schedule-search-clear" type="button" class="icon-btn" title="清空搜索" aria-label="清空搜索" data-schedule-command="clear-search" ${query ? '' : 'hidden'}>${icon('x')}</button></div></div><div id="schedule-list" class="schedule-list">${rowsMarkup()}</div><footer class="schedules-footer"><span id="schedule-visible-count">${filteredTasks().length} 个任务</span><span>当前不会自动执行</span></footer></div></div>`;
+    host.innerHTML=`<div class="schedules-page" data-schedules-page><div class="schedules-page-inner"><header class="schedules-header"><div><h1 id="workspace-page-title" tabindex="-1">定时任务</h1><p>安排主 Agent 的重复工作与单次计划。</p></div><button id="schedule-add" type="button" class="schedules-create" data-schedule-command="add">${icon('plus')}新建任务</button></header><div class="schedules-service-state">${icon('clock-3')}<span>${window.DongranRuntime?.enabled?'本地调度已连接':'调度服务待接入'}</span><span class="schedules-state-separator"></span><span>计划仅保存在本机</span><span class="schedules-timezone">时区：${escape(currentZone())}</span></div><p id="schedule-storage-error" class="schedules-error" role="alert" ${status ? '' : 'hidden'}>${escape(status)}</p><div class="schedules-toolbar"><div class="schedules-tabs" role="tablist" aria-label="任务状态">${[['all','全部'],['enabled','已启用'],['paused','已暂停']].map(([value,label]) => `<button id="schedule-filter-${value}" type="button" role="tab" aria-selected="${filter === value}" tabindex="${filter === value ? 0 : -1}" data-schedule-filter="${value}">${label}<span>${value === 'all' ? tasks.length : tasks.filter(task => value === 'enabled' ? task.enabled : !task.enabled).length}</span></button>`).join('')}</div><div class="schedules-search">${icon('search')}<input id="schedule-search" type="search" placeholder="搜索定时任务..." aria-label="搜索定时任务" value="${escape(query)}"><button id="schedule-search-clear" type="button" class="icon-btn" title="清空搜索" aria-label="清空搜索" data-schedule-command="clear-search" ${query ? '' : 'hidden'}>${icon('x')}</button></div></div><div id="schedule-list" class="schedule-list">${rowsMarkup()}</div><footer class="schedules-footer"><span id="schedule-visible-count">${filteredTasks().length} 个任务</span><span>${window.DongranRuntime?.enabled?'仅在应用运行期间执行':'当前不会自动执行'}</span></footer></div></div>`;
     window.lucide?.createIcons();
   }
 
@@ -115,12 +126,12 @@
     if (error) {error.textContent=message;error.hidden=!message;}
   }
 
-  function toggle(id) {
+  async function toggle(id) {
     const entry=tasks.find(task => task.id === id);
     if (!entry) return false;
     if (!entry.enabled && isExpired(entry)) {showPageError('这项单次计划的日期已过，请先编辑为未来时间。');return false;}
     const next=tasks.map(task => task.id === id ? {...task,enabled:!task.enabled,updatedAt:new Date().toISOString()} : {...task,weekdays:[...task.weekdays]});
-    const saved=persist(next);
+    const saved=await persist(next);
     refresh();
     return saved;
   }
@@ -136,7 +147,7 @@
     const project=original?.scope === 'project' ? {id:original.projectId,name:original.projectName} : currentProject();
     const draft={scope:original?.scope || (project ? 'project' : 'global'),frequency:original?.frequency || 'daily',weekdays:original?.frequency === 'weekly' ? [...original.weekdays] : [1,2,3,4,5],enabled:original?.enabled ?? true};
     const scopeLabel=() => draft.scope === 'global' ? '全局' : project?.name || '当前项目';
-    window.DongranUI.showDialog(original ? '编辑定时任务' : '新建定时任务', `<form id="schedule-form" class="schedule-form" novalidate><label class="schedule-form-field" for="schedule-name">任务名称<input id="schedule-name" type="text" maxlength="80" value="${escape(original?.name || '')}" placeholder="例如：每日需求与代码检查" required autocomplete="off"></label><label class="schedule-form-field" for="schedule-prompt">交给主 Agent 的任务<textarea id="schedule-prompt" rows="4" maxlength="4000" placeholder="描述需要完成的工作与期望结果。" required>${escape(original?.prompt || '')}</textarea></label><div class="schedule-form-grid"><div class="schedule-form-field"><span id="schedule-scope-label">工作范围</span><button id="schedule-scope" type="button" class="settings-select" aria-labelledby="schedule-scope-label schedule-scope-value" aria-haspopup="menu" aria-expanded="false"><span id="schedule-scope-value">${escape(scopeLabel())}</span>${icon('chevron-down')}</button></div><div class="schedule-form-field"><span id="schedule-frequency-label">重复频率</span><button id="schedule-frequency" type="button" class="settings-select" aria-labelledby="schedule-frequency-label schedule-frequency-value" aria-haspopup="menu" aria-expanded="false"><span id="schedule-frequency-value">${FREQUENCIES[draft.frequency]}</span>${icon('chevron-down')}</button></div></div><div id="schedule-weekday-field" class="schedule-form-field" ${draft.frequency === 'weekly' ? '' : 'hidden'}><span>星期</span><div class="schedule-weekdays" role="group" aria-label="每周执行日">${WEEKDAYS.map((day,index) => `<button type="button" data-schedule-weekday="${index+1}" aria-label="星期${day}" aria-pressed="${draft.weekdays.includes(index+1)}">${day}</button>`).join('')}</div></div><div class="schedule-form-grid"><label id="schedule-date-field" class="schedule-form-field" for="schedule-date" ${draft.frequency === 'once' ? '' : 'hidden'}>日期<input id="schedule-date" type="date" min="${today()}" value="${original?.date || today()}"></label><label class="schedule-form-field" for="schedule-time">时间<input id="schedule-time" type="text" value="${original?.time || '09:00'}" maxlength="5" inputmode="numeric" placeholder="09:00" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]" aria-describedby="schedule-timezone-note"></label></div><div id="schedule-timezone-note" class="schedule-timezone-note">${icon('globe')}系统时区：${escape(currentZone())}</div><div class="schedule-form-enabled"><span>启用计划</span><button id="schedule-enabled" type="button" class="settings-switch" role="switch" aria-label="启用计划" aria-checked="${draft.enabled}"><span></span></button></div><div class="schedule-form-notice">${icon('clock-3')}调度服务待接入，保存后不会自动执行。</div><p id="schedule-form-error" class="schedules-error" role="alert" hidden></p><div class="settings-confirm-actions"><button id="schedule-cancel" type="button" class="secondary">取消</button><button id="schedule-save" type="submit" class="primary">保存任务</button></div></form>`);
+    window.DongranUI.showDialog(original ? '编辑定时任务' : '新建定时任务', `<form id="schedule-form" class="schedule-form" novalidate><label class="schedule-form-field" for="schedule-name">任务名称<input id="schedule-name" type="text" maxlength="80" value="${escape(original?.name || '')}" placeholder="例如：每日需求与代码检查" required autocomplete="off"></label><label class="schedule-form-field" for="schedule-prompt">交给主 Agent 的任务<textarea id="schedule-prompt" rows="4" maxlength="4000" placeholder="描述需要完成的工作与期望结果。" required>${escape(original?.prompt || '')}</textarea></label><div class="schedule-form-grid"><div class="schedule-form-field"><span id="schedule-scope-label">工作范围</span><button id="schedule-scope" type="button" class="settings-select" aria-labelledby="schedule-scope-label schedule-scope-value" aria-haspopup="menu" aria-expanded="false"><span id="schedule-scope-value">${escape(scopeLabel())}</span>${icon('chevron-down')}</button></div><div class="schedule-form-field"><span id="schedule-frequency-label">重复频率</span><button id="schedule-frequency" type="button" class="settings-select" aria-labelledby="schedule-frequency-label schedule-frequency-value" aria-haspopup="menu" aria-expanded="false"><span id="schedule-frequency-value">${FREQUENCIES[draft.frequency]}</span>${icon('chevron-down')}</button></div></div><div id="schedule-weekday-field" class="schedule-form-field" ${draft.frequency === 'weekly' ? '' : 'hidden'}><span>星期</span><div class="schedule-weekdays" role="group" aria-label="每周执行日">${WEEKDAYS.map((day,index) => `<button type="button" data-schedule-weekday="${index+1}" aria-label="星期${day}" aria-pressed="${draft.weekdays.includes(index+1)}">${day}</button>`).join('')}</div></div><div class="schedule-form-grid"><label id="schedule-date-field" class="schedule-form-field" for="schedule-date" ${draft.frequency === 'once' ? '' : 'hidden'}>日期<input id="schedule-date" type="date" min="${today()}" value="${original?.date || today()}"></label><label class="schedule-form-field" for="schedule-time">时间<input id="schedule-time" type="text" value="${original?.time || '09:00'}" maxlength="5" inputmode="numeric" placeholder="09:00" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]" aria-describedby="schedule-timezone-note"></label></div><div id="schedule-timezone-note" class="schedule-timezone-note">${icon('globe')}系统时区：${escape(currentZone())}</div><div class="schedule-form-enabled"><span>启用计划</span><button id="schedule-enabled" type="button" class="settings-switch" role="switch" aria-label="启用计划" aria-checked="${draft.enabled}"><span></span></button></div><div class="schedule-form-notice">${icon('clock-3')}${window.DongranRuntime?.enabled?'应用运行时执行；完全退出后停止，不补跑离线期间的计划。':'调度服务待接入，保存后不会自动执行。'}</div><p id="schedule-form-error" class="schedules-error" role="alert" hidden></p><div class="settings-confirm-actions"><button id="schedule-cancel" type="button" class="secondary">取消</button><button id="schedule-save" type="submit" class="primary">保存任务</button></div></form>`);
     const form=document.getElementById('schedule-form');
     const error=message => {const target=document.getElementById('schedule-form-error');target.textContent=message;target.hidden=false;};
     const clearError=() => {document.getElementById('schedule-form-error').hidden=true;};
@@ -160,7 +171,7 @@
     });
     document.getElementById('schedule-enabled').addEventListener('click',event => {draft.enabled=!draft.enabled;event.currentTarget.setAttribute('aria-checked',String(draft.enabled));});
     document.getElementById('schedule-cancel').addEventListener('click',() => window.DongranUI.closeDialog());
-    form.addEventListener('submit',event => {
+    form.addEventListener('submit',async event => {
       event.preventDefault();
       const name=document.getElementById('schedule-name').value.trim();
       const prompt=document.getElementById('schedule-prompt').value.trim();
@@ -177,7 +188,7 @@
       const now=new Date().toISOString();
       const entry={id:original?.id || (globalThis.crypto?.randomUUID?.() || `schedule-${Date.now()}-${++idSequence}`),name,prompt,scope:draft.scope,projectId:draft.scope === 'project' ? project.id : null,projectName:draft.scope === 'project' ? project.name : '',frequency:draft.frequency,time,weekdays:draft.frequency === 'weekly' ? [...draft.weekdays] : [],date,enabled:draft.enabled,createdAt:original?.createdAt || now,updatedAt:now};
       const next=original ? tasks.map(task => task.id === original.id ? entry : {...task,weekdays:[...task.weekdays]}) : [...tasks.map(task => ({...task,weekdays:[...task.weekdays]})),entry];
-      if (!persist(next)) {error(status || '配置无法保存，请检查输入。');return;}
+      if (!await persist(next)) {error(status || '配置无法保存，请检查输入。');return;}
       refresh();
       window.DongranUI.closeDialog();
     });
@@ -190,8 +201,8 @@
     if (!entry) return;
     window.DongranUI.showDialog('删除定时任务', `<p class="settings-confirm-copy">删除“${escape(entry.name)}”？这项计划将从本机移除。</p><p id="schedule-delete-error" class="schedules-error" role="alert" hidden></p><div class="settings-confirm-actions"><button id="schedule-cancel-delete" type="button" class="secondary">取消</button><button id="schedule-confirm-delete" type="button" class="primary">删除任务</button></div>`);
     document.getElementById('schedule-cancel-delete').addEventListener('click',() => window.DongranUI.closeDialog());
-    document.getElementById('schedule-confirm-delete').addEventListener('click',() => {
-      if (!persist(tasks.filter(task => task.id !== id).map(task => ({...task,weekdays:[...task.weekdays]})))) {
+    document.getElementById('schedule-confirm-delete').addEventListener('click',async () => {
+      if (!await persist(tasks.filter(task => task.id !== id).map(task => ({...task,weekdays:[...task.weekdays]})))) {
         const error=document.getElementById('schedule-delete-error');error.textContent=status;error.hidden=false;return;
       }
       refresh();
@@ -206,7 +217,7 @@
     if (button.dataset.scheduleCommand === 'add') openEditor();
     else if (button.dataset.scheduleFilter) {filter=button.dataset.scheduleFilter;refresh();document.getElementById(`schedule-filter-${filter}`)?.focus({preventScroll:true});}
     else if (button.dataset.scheduleToggle) toggle(button.dataset.scheduleToggle);
-    else if (button.dataset.scheduleMore) window.DongranUI.showMenu(button,{label:'任务操作',items:[{value:'edit',label:'编辑任务',icon:'pencil'},{type:'separator'},{value:'delete',label:'删除任务',icon:'trash-2'}],onSelect:value => value === 'edit' ? openEditor(button.dataset.scheduleMore) : confirmDelete(button.dataset.scheduleMore)});
+    else if (button.dataset.scheduleMore) window.DongranUI.showMenu(button,{label:'任务操作',items:[{value:'edit',label:'编辑任务',icon:'pencil'},...(window.DongranRuntime?.enabled?[{value:'run',label:'立即执行',icon:'play'},{value:'history',label:'执行记录',icon:'history'}]:[]),{type:'separator'},{value:'delete',label:'删除任务',icon:'trash-2'}],onSelect:value => value === 'edit' ? openEditor(button.dataset.scheduleMore) : value === 'delete' ? confirmDelete(button.dataset.scheduleMore) : window.DongranRuntime.scheduleAction(button.dataset.scheduleMore,value)});
     else if (button.dataset.scheduleCommand === 'clear-search') {query='';refresh();document.getElementById('schedule-search')?.focus();}
   });
   document.addEventListener('input',event => {
@@ -227,5 +238,5 @@
     document.getElementById(`schedule-filter-${values[next]}`)?.click();
   });
   window.addEventListener('projectchange',refresh);
-  window.DongranSchedules={render,refresh,openEditor,toggle,getAll:() => tasks.map(task => ({...task,weekdays:[...task.weekdays]})),validateTask,validateDocument,ruleSummary};
+  window.DongranSchedules={hydrate(snapshot){tasks=snapshot.tasks;revision=snapshot.revision;status='';refresh();},render,refresh,openEditor,toggle,getAll:() => tasks.map(task => ({...task,weekdays:[...task.weekdays]})),validateTask,validateDocument,ruleSummary};
 })();
