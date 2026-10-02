@@ -4,6 +4,7 @@
   <parent><groupId>com.dongran</groupId><artifactId>dongran-work</artifactId><version>0.1.0-SNAPSHOT</version></parent>
   <artifactId>dongran-backend</artifactId>
   <dependencies>
+    <dependency><groupId>org.jetbrains.pty4j</groupId><artifactId>pty4j</artifactId><version>0.13.10</version></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-validation</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-jdbc</artifactId></dependency>
@@ -18,7 +19,7 @@
   <build>
     <resources>
       <resource><directory>src/main/resources</directory></resource>
-      <resource><directory>../prototype</directory><targetPath>static</targetPath><includes><include>*.html</include><include>*.css</include><include>*.js</include><include>node_modules/lucide/dist/umd/lucide.js</include><include>node_modules/pdfjs-dist/build/pdf.mjs</include><include>node_modules/pdfjs-dist/build/pdf.worker.mjs</include><include>node_modules/pdfjs-dist/cmaps/*</include><include>node_modules/pdfjs-dist/standard_fonts/*</include><include>node_modules/pdfjs-dist/wasm/*</include><include>node_modules/docx-preview/dist/docx-preview.min.js</include><include>node_modules/marked/lib/marked.umd.js</include><include>node_modules/dompurify/dist/purify.min.js</include><include>node_modules/jszip/dist/jszip.min.js</include></includes></resource>
+      <resource><directory>../prototype</directory><targetPath>static</targetPath><includes><include>*.html</include><include>*.css</include><include>*.js</include><include>node_modules/@xterm/xterm/lib/xterm.js</include><include>node_modules/@xterm/xterm/css/xterm.css</include><include>node_modules/@xterm/addon-fit/lib/addon-fit.js</include><include>node_modules/@xterm/addon-search/lib/addon-search.js</include><include>node_modules/lucide/dist/umd/lucide.js</include><include>node_modules/pdfjs-dist/build/pdf.mjs</include><include>node_modules/pdfjs-dist/build/pdf.worker.mjs</include><include>node_modules/pdfjs-dist/cmaps/*</include><include>node_modules/pdfjs-dist/standard_fonts/*</include><include>node_modules/pdfjs-dist/wasm/*</include><include>node_modules/docx-preview/dist/docx-preview.min.js</include><include>node_modules/marked/lib/marked.umd.js</include><include>node_modules/dompurify/dist/purify.min.js</include><include>node_modules/jszip/dist/jszip.min.js</include></includes></resource>
     </resources>
     <plugins><plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin><plugin>
  <groupId>com.diffplug.spotless</groupId><artifactId>spotless-maven-plugin</artifactId><version>2.43.0</version>

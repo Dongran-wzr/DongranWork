@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class ModelClient {
+  private final PreferenceService preferences;
   private final Database db;
   private final ModelProviderService providers;
   private final CredentialService credentials;
@@ -31,7 +32,12 @@ public class ModelClient {
 
   public record Result(String text, List<Map<String, Object>> calls, Map<String, Object> message) {}
 
-  public ModelClient(Database db, ModelProviderService providers, CredentialService credentials) {
+  public ModelClient(
+      Database db,
+      ModelProviderService providers,
+      CredentialService credentials,
+      PreferenceService preferences) {
+    this.preferences = preferences;
     this.db = db;
     this.providers = providers;
     this.credentials = credentials;
@@ -76,6 +82,11 @@ public class ModelClient {
     payload.put("model", model);
     payload.put("messages", messages);
     payload.put("stream", true);
+    int reserve =
+        Math.min(
+            configuration.contextWindow() / 3,
+            Database.number(preferences.all(), "contextOutputReserve", 4096, 512, 16384));
+    payload.put("max_tokens", reserve);
     payload.put("temperature", configuration.temperature());
     if (!tools.isEmpty()) {
       payload.put("tools", tools);
@@ -83,8 +94,11 @@ public class ModelClient {
       payload.put("parallel_tool_calls", false);
     }
     String serialized = db.json(payload);
-    int limit = configuration.contextWindow() * 3;
-    if (serialized.length() > limit) throw ApiException.bad("任务上下文已超过配置上限，请拆分任务或提高上限。");
+    int limit =
+        configuration.contextWindow() - reserve - Math.max(256, configuration.contextWindow() / 20);
+    if (com.dongran.work.service.ContextEngine.estimate(db.json(messages))
+            + com.dongran.work.service.ContextEngine.estimate(db.json(tools))
+        > limit) throw ApiException.bad("任务上下文已超过配置上限，请拆分任务或提高上限。");
     var request =
         HttpRequest.newBuilder(
                 URI.create(base.toString().replaceAll("/+$", "") + "/chat/completions"))
@@ -119,13 +133,18 @@ public class ModelClient {
             .contains("text/event-stream")) {
           byte[] bytes = input.readNBytes(2_000_001);
           if (bytes.length > 2_000_000) throw ApiException.bad("模型响应超过限制。");
-          JsonNode message = db.mapper.readTree(bytes).path("choices").path(0).path("message");
+          JsonNode choice = db.mapper.readTree(bytes).path("choices").path(0);
+          checkFinish(choice.path("finish_reason").asText(""));
+          JsonNode message = choice.path("message");
           String content = message.path("content").asText("");
           delta.accept(content);
           List<Map<String, Object>> result = new ArrayList<>();
           for (JsonNode tool : message.path("tool_calls")) result.add(db.object(tool.toString()));
+          if (!result.isEmpty() && !"tool_calls".equals(choice.path("finish_reason").asText()))
+            throw new com.dongran.work.exception.ModelIncompleteException("工具响应缺少完成标记。");
           return result(content, result);
         }
+        String finishReason = "";
         try (var reader =
             new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
           String line;
@@ -146,7 +165,11 @@ public class ModelClient {
             if (envelope.has("error")) throw ApiException.bad("模型服务返回流式错误。");
             JsonNode choice = envelope.path("choices").path(0), part = choice.path("delta");
             if (!choice.path("finish_reason").isNull()
-                && !choice.path("finish_reason").isMissingNode()) finished = true;
+                && !choice.path("finish_reason").isMissingNode()) {
+              finished = true;
+              finishReason = choice.path("finish_reason").asText();
+              checkFinish(finishReason);
+            }
             if (part.path("content").isTextual()) {
               String fragment = part.path("content").asText();
               text.append(fragment);
@@ -169,8 +192,11 @@ public class ModelClient {
                         + call.path("function").path("arguments").asText());
             }
           }
-          if (!finished) throw ApiException.bad("模型响应意外中断，请重试。");
+          if (!finished)
+            throw new com.dongran.work.exception.ModelIncompleteException("模型流中断，未执行工具调用。");
         }
+        if (!calls.isEmpty() && !"tool_calls".equals(finishReason))
+          throw new com.dongran.work.exception.ModelIncompleteException("工具调用缺少明确完成标记，未执行。");
         var completeCalls = new ArrayList<Map<String, Object>>();
         for (var call : calls.values()) {
           if (String.valueOf(call.get("id")).isBlank()
@@ -190,6 +216,12 @@ public class ModelClient {
         timer.cancel(false);
       }
     }
+  }
+
+  static void checkFinish(String reason) {
+    if (Set.of("length", "content_filter", "incomplete", "error").contains(reason))
+      throw new com.dongran.work.exception.ModelIncompleteException(
+          "模型输出未完成（" + reason + "），未执行工具调用。");
   }
 
   private Result result(String text, List<Map<String, Object>> calls) {

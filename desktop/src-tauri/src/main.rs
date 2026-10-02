@@ -103,6 +103,23 @@ fn start_backend(
     Err("backend did not become ready within the startup deadline".into())
 }
 
+// Stop host PTYs before terminating Java; force-killing the JVM skips Spring cleanup.
+fn close_terminals(app: &tauri::AppHandle, pid: u32) -> Result<(), Box<dyn std::error::Error>> {
+    let bytes = fs::read(app.path().app_data_dir()?.join("runtime.json"))?;
+    let runtime: serde_json::Value = serde_json::from_slice(&bytes)?;
+    if runtime["pid"].as_u64() != Some(pid as u64) { return Ok(()); }
+    let port = runtime["port"].as_u64().filter(|p| *p > 0 && *p <= 65535).ok_or("invalid backend port")?;
+    let token = runtime["token"].as_str().ok_or("missing backend session")?;
+    let client: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(Duration::from_secs(8)))
+        .max_redirects(0)
+        .build().into();
+    client.delete(&format!("http://127.0.0.1:{port}/api/terminals"))
+        .header("Authorization", &format!("Bearer {token}"))
+        .header("X-Dongran-Client", "desktop").call()?;
+    Ok(())
+}
+
 fn main() {
     let builder = tauri::Builder::default().setup(|app| {
         let (mut child, url) = start_backend(app.handle()).map_err(|error| error.to_string())?;
@@ -126,6 +143,7 @@ fn main() {
                 api.prevent_exit();
                 if let Some(state) = app.try_state::<Backend>() {
                     if let Some(mut child) = state.0.lock().unwrap().take() {
+                        let _ = close_terminals(app, child.id());
                         let _ = child.kill();
                         let _ = child.wait();
                     }

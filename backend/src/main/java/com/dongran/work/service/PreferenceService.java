@@ -10,19 +10,26 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PreferenceService {
+  private final com.dongran.work.repository.MemoryRepository memoryStore;
   private final SettingsValidator validator;
   private final Database db;
   private final PreferenceRepository repository;
 
   public PreferenceService(
-      Database db, PreferenceRepository repository, SettingsValidator validator) {
+      Database db,
+      PreferenceRepository repository,
+      SettingsValidator validator,
+      com.dongran.work.repository.MemoryRepository memoryStore) {
+    this.memoryStore = memoryStore;
     this.validator = validator;
     this.db = db;
     this.repository = repository;
   }
 
   public Map<String, Object> all() {
-    return repository.findAll();
+    var result = repository.findAll();
+    result.put("memoryEntries", memoryStore.legacy());
+    return result;
   }
 
   public String string(String key, String fallback) {
@@ -50,7 +57,8 @@ public class PreferenceService {
       if (key.equals("baseUrl")) validateUrl(String.valueOf(value));
       if (key.equals("parallelAgents")) Database.number(values, key, 3, 1, 4);
       if (key.equals("automationHooks")) validateHooks(value);
-      repository.upsert(key, db.json(value));
+      if (key.equals("memoryEntries")) memoryStore.replace((List<Map<String, Object>>) value);
+      else repository.upsert(key, db.json(value));
     }
     return all();
   }

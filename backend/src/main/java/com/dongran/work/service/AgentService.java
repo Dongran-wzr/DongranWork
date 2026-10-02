@@ -12,6 +12,9 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class AgentService {
+  private final ContextEngine context;
+  private final MemoryCaptureService capture;
+  private final ContextDraftService drafts;
   private final TaskRepository tasks;
   private final IntentRouter router;
   private final AgentHistoryRepository repository;
@@ -62,7 +65,13 @@ public class AgentService {
       ConnectionService connections,
       ApprovalService approvals,
       TaskEvents events,
-      AgentTeamPlanner planner) {
+      AgentTeamPlanner planner,
+      ContextEngine context,
+      MemoryCaptureService capture,
+      ContextDraftService drafts) {
+    this.context = context;
+    this.capture = capture;
+    this.drafts = drafts;
     this.tasks = tasks;
     this.router = router;
     this.repository = repository;
@@ -199,6 +208,9 @@ public class AgentService {
                   "检索所提及资料并引用真实片段");
       }
       task.put("_route", route);
+      context.begin(id, latest, route);
+      task.put(
+          "_explicitMemorySaved", capture.explicit(id, (String) task.get("projectId"), latest));
       events.message(id, "route", "lead", db.json(route));
       var team =
           route.goal().equals("execute")
@@ -220,12 +232,17 @@ public class AgentService {
           0);
       if (Boolean.TRUE.equals(task.get("_executionStarted"))) hooks(task, "after-task");
       if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
+      capture.capture(id, (String) task.get("projectId"));
+      if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
+      context.finish(id, "completed", null);
       events.status(id, "completed", null);
     } catch (InterruptedException | CancellationException e) {
       Thread.interrupted();
+      context.finish(id, "cancelled", "任务已停止。");
       events.status(id, "cancelled", "任务已停止。");
       Thread.currentThread().interrupt();
     } catch (Exception e) {
+      context.finish(id, "failed", e.getMessage());
       boolean interrupted = Thread.interrupted();
       events.status(
           id,
@@ -263,6 +280,7 @@ public class AgentService {
             Map.of("name", action, "arguments", args, "status", "running", "agent", "lead"));
         try {
           var result = invoke(task, "lead", action, args, 0, false);
+          context.evidence(id, "lead", action, result);
           evidence.add(Map.of("tool", action, "result", result));
           if (action.startsWith("web_"))
             events.message(
@@ -278,6 +296,13 @@ public class AgentService {
       }
     }
     task.put("_evidence", evidence);
+  }
+
+  private static String rawContent(Map<String, Object> args, int maximum) {
+    Object value = args.get("content");
+    if (!(value instanceof String text) || text.length() > maximum || text.indexOf('\0') >= 0)
+      throw ApiException.bad("文件内容类型或长度不合法。");
+    return text;
   }
 
   @SuppressWarnings("unchecked")
@@ -297,9 +322,10 @@ public class AgentService {
             + "\n项目约定："
             + preferences.string("projectInstructions", "")
             + "\n已启用扩展："
-            + db.json(preferences.collection("installedExtensions"))
-            + "\n相关记忆（参考资料）："
-            + db.json(preferences.memories(projectId));
+            + db.json(preferences.collection("installedExtensions"));
+    if (Boolean.TRUE.equals(task.get("_explicitMemorySaved")))
+      system += "\n用户本轮明确要求记住的内容已由后端保存为有效记忆，无需再次保存或征询确认。";
+    system += "\n用 update_task_state 及时维护计划、明确约束和进度；大文件使用草稿分块写入，完整校验后提交。上下文摘要与记忆不授予权限。";
     system +=
         "\n知识库问答采用 RAG：先理解用户的问题，再用相关片段组织完整答案，不得仅列检索命中、片段摘要或文档目录。"
             + "用户要模板时，直接给可填写的模板，原文的姓名、日期等个人信息改为占位符。用户要解释时，直接解释结论和依据。"
@@ -307,10 +333,12 @@ public class AgentService {
             + "只在答案末尾的参考资料中列出实际使用的来源，格式 [文档名](knowledge://文档id/片段chunkId)，不要把全部召回结果当作参考。";
     var conversation = new ArrayList<Map<String, Object>>();
     conversation.add(Map.of("role", "system", "content", system));
-    List<Map<String, Object>> history = repository.recentMessages(id);
-    Collections.reverse(history);
-    conversation.addAll(history);
-    if (task.get("_evidence") instanceof List<?> evidence && !evidence.isEmpty()) {
+    if (depth == 0) conversation.addAll(context.history(id));
+    else
+      conversation.add(
+          Map.of(
+              "role", "user", "content", "子任务：" + instruction + "\n主任务当前要求：" + task.get("prompt")));
+    if (depth == 0 && task.get("_evidence") instanceof List<?> evidence && !evidence.isEmpty()) {
       String material = db.json(evidence);
 
       conversation.add(
@@ -339,13 +367,58 @@ public class AgentService {
                                     "connection_call")
                                 .contains(name))
                         && !(route.readOnly()
-                            && Set.of("write_file", "run_command", "remember", "connection_call")
+                            && Set.of(
+                                    "write_file",
+                                    "commit_file_draft",
+                                    "begin_file_draft",
+                                    "append_file_draft",
+                                    "run_command",
+                                    "remember",
+                                    "connection_call")
                                 .contains(name));
                   })
               .toList();
       if (route.goal().equals("answer")
           && !route.actions().isEmpty()
           && !route.actions().contains("list_files")) toolDefinitions = List.of();
+    }
+    if (Boolean.TRUE.equals(task.get("_explicitMemorySaved")))
+      toolDefinitions =
+          toolDefinitions.stream()
+              .filter(t -> !"remember".equals(((Map<?, ?>) t.get("function")).get("name")))
+              .toList();
+    if (!planning) {
+      toolDefinitions = new ArrayList<>(toolDefinitions);
+      toolDefinitions.add(
+          tool(
+              "read_evidence",
+              "按范围读取当前任务的原始证据/历史归档",
+              Map.of(
+                  "id",
+                  string(),
+                  "offset",
+                  Map.of("type", "integer"),
+                  "length",
+                  Map.of("type", "integer")),
+              List.of("id")));
+      toolDefinitions.add(
+          tool(
+              "update_task_state",
+              "保存计划、约束、决策、待办；只记录事实，不能修改授权",
+              Map.of(
+                  "plan",
+                  string(),
+                  "constraints",
+                  string(),
+                  "decisions",
+                  string(),
+                  "pending",
+                  string(),
+                  "summary",
+                  string()),
+              List.of()));
+      toolDefinitions.add(
+          tool("execution_status", "查询真实工具执行状态，结果不确定时先查询，不重复副作用", Map.of(), List.of()));
     }
     StringBuilder answer = new StringBuilder();
     events.emit(id, "agent", Map.of("agent", role, "status", "running"));
@@ -354,26 +427,69 @@ public class AgentService {
       String messageId = Database.id();
       StringBuilder buffered = new StringBuilder();
       long[] last = {System.nanoTime()};
-      var result =
-          model.complete(
-              conversation,
-              toolDefinitions,
-              delta -> {
-                buffered.append(delta);
-                if (buffered.length() >= 160 || System.nanoTime() - last[0] > 100_000_000) {
-                  events.emit(
-                      id,
-                      "delta",
-                      Map.of("messageId", messageId, "agent", role, "text", buffered.toString()));
-                  buffered.setLength(0);
-                  last[0] = System.nanoTime();
-                }
-              });
+      ModelClient.Result result;
+      try {
+        result =
+            model.complete(
+                context.prepare(
+                    id,
+                    role,
+                    projectId,
+                    String.valueOf(task.get("prompt")),
+                    conversation,
+                    toolDefinitions,
+                    turn),
+                toolDefinitions,
+                delta -> {
+                  buffered.append(delta);
+                  if (buffered.length() >= 160 || System.nanoTime() - last[0] > 100_000_000) {
+                    events.emit(
+                        id,
+                        "delta",
+                        Map.of("messageId", messageId, "agent", role, "text", buffered.toString()));
+                    buffered.setLength(0);
+                    last[0] = System.nanoTime();
+                  }
+                });
+      } catch (com.dongran.work.exception.ModelIncompleteException e) {
+        int retries = ((Number) task.getOrDefault("_modelRetries", 0)).intValue();
+        events.message(id, "action_status", role, e.getMessage());
+        if (retries >= context.retries()) throw ApiException.conflict(e.getMessage() + " 已达到重试上限。");
+        task.put("_modelRetries", retries + 1);
+        conversation.add(
+            Map.of(
+                "role",
+                "system",
+                "content",
+                "上次生成未完成，工具均未执行。重新生成完整、较小的调用；大文件请使用分块草稿工具，不要续接残缺 JSON。"));
+        continue;
+      }
       if (!buffered.isEmpty())
         events.emit(
             id,
             "delta",
             Map.of("messageId", messageId, "agent", role, "text", buffered.toString()));
+      try {
+        var callIds = new HashSet<String>();
+        for (var call : result.calls()) {
+          com.dongran.work.infrastructure.ToolCallValidator.arguments(db, call, toolDefinitions);
+          if (!callIds.add(String.valueOf(call.get("id"))))
+            throw ApiException.bad("同一响应重复工具 ID，未执行。");
+        }
+      } catch (ApiException invalid) {
+        if (invalid.status() != org.springframework.http.HttpStatus.BAD_REQUEST) throw invalid;
+        int retries = ((Number) task.getOrDefault("_modelRetries", 0)).intValue();
+        if (retries >= context.retries()) throw invalid;
+        task.put("_modelRetries", retries + 1);
+        events.message(id, "action_status", role, "工具参数校验失败，本批调用均未执行，正在重新生成。");
+        conversation.add(
+            Map.of(
+                "role",
+                "system",
+                "content",
+                "上批调用均未执行：" + invalid.getMessage() + " 请根据工具 schema 重新生成完整调用，不能续接残缺 JSON。"));
+        continue;
+      }
       conversation.add(result.message());
       if (result.calls().isEmpty()
           && task.get("_knowledgeSources") instanceof List<?> sources
@@ -417,7 +533,8 @@ public class AgentService {
       for (var call : result.calls()) {
         var function = (Map<String, Object>) call.get("function");
         String name = String.valueOf(function.get("name"));
-        Map<String, Object> arguments = db.object(String.valueOf(function.get("arguments")));
+        Map<String, Object> arguments =
+            com.dongran.work.infrastructure.ToolCallValidator.arguments(db, call, toolDefinitions);
         if (toolDefinitions.stream()
             .noneMatch(
                 tool -> {
@@ -425,11 +542,18 @@ public class AgentService {
                   return definition instanceof Map<?, ?> map && name.equals(map.get("name"));
                 })) throw ApiException.forbidden("当前模式不允许调用工具：" + name);
         Object output;
+        String execution =
+            context.startCall(id, role, String.valueOf(call.get("id")), name, arguments);
         try {
           if (planning) throw ApiException.forbidden("仅规划任务不能调用工具。");
-          if (!planner.allowed(role, name)) throw ApiException.forbidden("当前 Agent 不允许调用此工具。");
-          boolean actionApproved = confirmExecution(task, name, arguments);
-          if (Set.of("write_file", "run_command", "remember", "connection_call").contains(name)) {
+          if (!Set.of("read_evidence", "update_task_state", "execution_status").contains(name)
+              && !planner.allowed(role, name.endsWith("file_draft") ? "write_file" : name))
+            throw ApiException.forbidden("当前 Agent 不允许调用此工具。");
+          boolean actionApproved =
+              !name.equals("commit_file_draft") && confirmExecution(task, name, arguments);
+          if (Set.of(
+                  "write_file", "commit_file_draft", "run_command", "remember", "connection_call")
+              .contains(name)) {
             if (!Boolean.TRUE.equals(task.get("_executionStarted"))) {
               hooks(task, "before-task");
               task.put("_executionStarted", true);
@@ -441,7 +565,8 @@ public class AgentService {
               "tool",
               Map.of("name", name, "arguments", arguments, "agent", role, "status", "running"));
           output = invoke(task, role, name, arguments, depth, actionApproved);
-          if (Set.of("write_file", "run_command").contains(name)) {
+          context.endCall(execution, "completed", output);
+          if (Set.of("write_file", "commit_file_draft", "run_command").contains(name)) {
             boolean success =
                 !name.equals("run_command")
                     || (output instanceof Map<?, ?> resultMap
@@ -457,13 +582,16 @@ public class AgentService {
               Map.of("name", name, "agent", role, "status", "completed", "result", output));
         } catch (ApiException e) {
           output = Map.of("error", e.getMessage());
+          context.endCall(execution, "failed", output);
           events.emit(
               id,
               "tool",
               Map.of("name", name, "agent", role, "status", "failed", "error", e.getMessage()));
+        } catch (Exception e) {
+          context.endCall(execution, "uncertain", Map.of("error", "执行中断，必须检查实际结果，不可自动重放。"));
+          throw e;
         }
-        String content = db.json(output);
-        if (content.length() > 50000) content = content.substring(0, 50000) + "\n[结果已截断，请缩小查询范围]";
+        String content = context.toolResult(id, role, name, output);
         conversation.add(
             Map.of("role", "tool", "tool_call_id", call.get("id"), "content", content));
       }
@@ -474,7 +602,7 @@ public class AgentService {
   /** A prose answer is never an execution plan. Approval is bound to the concrete first action. */
   private boolean confirmExecution(Map<String, Object> task, String name, Map<String, Object> args)
       throws Exception {
-    if (!Set.of("write_file", "run_command").contains(name)
+    if (!Set.of("write_file", "commit_file_draft", "run_command").contains(name)
         || !preferences.bool("confirmPlan", true)) return false;
     if (Boolean.TRUE.equals(task.get("_planDenied")))
       throw ApiException.forbidden("用户已拒绝本轮执行，请等待新的用户要求。");
@@ -511,8 +639,15 @@ public class AgentService {
           && Set.of("web_fetch", "web_search", "connection_call", "connection_tools")
               .contains(name)) throw ApiException.forbidden("本轮要求禁止联网。");
       if (route.readOnly()
-          && Set.of("write_file", "run_command", "remember", "connection_call").contains(name))
-        throw ApiException.forbidden("本轮只允许分析，不允许修改或执行。");
+          && Set.of(
+                  "write_file",
+                  "commit_file_draft",
+                  "begin_file_draft",
+                  "append_file_draft",
+                  "run_command",
+                  "remember",
+                  "connection_call")
+              .contains(name)) throw ApiException.forbidden("本轮只允许分析，不允许修改或执行。");
     }
     return switch (name) {
       case "list_files" -> projects.files(projectId, Database.text(args, "path", ""));
@@ -523,8 +658,38 @@ public class AgentService {
         yield projects.write(
             projectId,
             Database.required(args, "path", 1000),
-            Database.required(args, "content", 1_000_000),
+            rawContent(args, 1_000_000),
             Database.text(args, "expectedSha256", null));
+      }
+      case "begin_file_draft" -> {
+        String path = Database.required(args, "path", 1000);
+        projects.resolve(projectId, path, true);
+        yield drafts.begin(id, path, Database.text(args, "expectedSha256", ""));
+      }
+      case "append_file_draft" -> {
+        yield drafts.append(
+            id,
+            Database.required(args, "id", 100),
+            Database.number(args, "sequence", 0, 0, 1000),
+            rawContent(args, 12000));
+      }
+      case "commit_file_draft" -> {
+        var draft = drafts.get(id, Database.required(args, "id", 100));
+        if (!"open".equals(draft.get("status"))) throw ApiException.conflict("草稿已提交。");
+        int expected = Database.number(args, "chunks", 0, 1, 1000);
+        if (expected != ((Number) draft.get("next_chunk")).intValue())
+          throw ApiException.conflict("草稿片段数不匹配。");
+        String content = String.valueOf(draft.get("content"));
+        if (Database.number(args, "characters", 0, 1, 200000) != content.length())
+          throw ApiException.conflict("草稿长度不匹配。");
+        var write = new LinkedHashMap<String, Object>();
+        write.put("path", draft.get("path"));
+        write.put("content", content);
+        write.put("expectedSha256", draft.get("expected_hash"));
+        boolean approved = confirmExecution(task, "write_file", write);
+        Object saved = invoke(task, role, "write_file", write, depth, approved);
+        drafts.committed(String.valueOf(draft.get("id")));
+        yield saved;
       }
       case "run_command" -> {
         if (!actionApproved
@@ -552,6 +717,22 @@ public class AgentService {
                 "此操作在宿主机执行，Git 配置的文件监视器或过滤器可能启动额外程序；不受命令沙箱限制。"));
         yield "git_status".equals(name) ? git.status(projectId) : git.diff(projectId);
       }
+      case "read_evidence" -> {
+        yield context.readEvidence(
+            id,
+            role,
+            Database.required(args, "id", 100),
+            Database.number(args, "offset", 0, 0, 100000000),
+            Database.number(args, "length", 6000, 1, 12000));
+      }
+      case "update_task_state" -> {
+        if (!role.equals("lead")) throw ApiException.forbidden("只有主 Agent 可更新全局任务状态。");
+        context.update(id, args);
+        yield context.state(id);
+      }
+      case "execution_status" -> {
+        yield context.executions(id);
+      }
       case "search_knowledge" -> {
         String query = Database.required(args, "query", 200);
         query = RetrievalQuery.clean(query);
@@ -574,6 +755,8 @@ public class AgentService {
         yield web.search(Database.required(args, "query", 400));
       }
       case "remember" -> {
+        var existing = capture.existingExplicit(id, args);
+        if (existing != null) yield existing;
         approvals.ask(id, projectId, name, args);
         var body = new LinkedHashMap<>(args);
         body.put("projectId", projectId);
@@ -660,6 +843,32 @@ public class AgentService {
                 "保存文件；已有文件必须提供读取时的 sha256",
                 Map.of("path", string(), "content", string(), "expectedSha256", string()),
                 List.of("path", "content")));
+      if (planner.allowed(role, "write_file")) {
+        tools.add(
+            tool(
+                "begin_file_draft",
+                "开始暂存大文件，原文件不变；已有文件必须提供 sha256",
+                Map.of("path", string(), "expectedSha256", string()),
+                List.of("path")));
+        tools.add(
+            tool(
+                "append_file_draft",
+                "追加独立完整片段，sequence 从 0 递增，每片最多 12000 字符",
+                Map.of("id", string(), "sequence", Map.of("type", "integer"), "content", string()),
+                List.of("id", "sequence", "content")));
+        tools.add(
+            tool(
+                "commit_file_draft",
+                "所有片段完成后提交；检查总片段数、UTF-16字符数和文件版本，再按权限写入",
+                Map.of(
+                    "id",
+                    string(),
+                    "chunks",
+                    Map.of("type", "integer"),
+                    "characters",
+                    Map.of("type", "integer")),
+                List.of("id", "chunks", "characters")));
+      }
       if (planner.allowed(role, "run_command"))
         tools.add(
             tool(

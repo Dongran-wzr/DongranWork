@@ -12,6 +12,7 @@ public class SettingsValidator {
       Set.of(
           "memoryEnabled",
           "memoryAutoCapture",
+          "contextAutoCompact",
           "petEnabled",
           "petDnd",
           "showToolCount",
@@ -85,6 +86,9 @@ public class SettingsValidator {
           Map.entry("temperature", new double[] {0.0, 2.0, 0.1}),
           Map.entry("contextWindow", new double[] {4096.0, 131072.0, 1024.0}),
           Map.entry("parallelAgents", new double[] {1.0, 4.0, 1.0}),
+          Map.entry("contextOutputReserve", new double[] {512.0, 16384.0, 1.0}),
+          Map.entry("contextRetryLimit", new double[] {0.0, 3.0, 1.0}),
+          Map.entry("contextMemoryLimit", new double[] {1.0, 20.0, 1.0}),
           Map.entry("terminalFontSize", new double[] {11.0, 18.0, 1.0}),
           Map.entry("terminalHeight", new double[] {180.0, 360.0, 10.0}));
 

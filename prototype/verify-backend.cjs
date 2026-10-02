@@ -256,10 +256,11 @@ const assert = require('node:assert/strict');
     assert.match(await page.locator('.knowledge-frame').evaluate(frame=>frame.contentDocument.querySelector('#knowledge-hit').textContent),/可追溯验收词/);
     await page.locator('#knowledge-preview [data-preview="close"]').click();await page.waitForFunction(()=>!document.querySelector('#knowledge-preview').open);
     await page.locator('#terminal-toggle').click();
+    await page.locator('#terminal-empty-sandbox').click();
     await page.locator('#terminal-input').fill('echo terminal-real-output');
     await page.locator('#terminal-input').press('Enter');
-    await page.waitForFunction(()=>document.querySelector('#terminal-output').textContent.includes('completed · exit 0'));
-    assert.match(await page.locator('#terminal-output').innerText(),/terminal-real-output/);
+    await page.waitForFunction(()=>document.querySelector('.terminal-pane.is-focused .xterm-rows')?.textContent.includes('completed · exit 0'));
+    assert.match(await page.locator('.terminal-pane.is-focused .xterm-rows').innerText(),/terminal-real-output/);
     await page.locator('#terminal-close').click();
 
     await page.locator('[data-action="knowledge"]').first().click();

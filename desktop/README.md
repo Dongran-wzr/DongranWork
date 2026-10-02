@@ -54,3 +54,6 @@ The shell still starts `java` from PATH. Bundling a JVM, graceful shutdown/tray 
 The Java process, controlled file/Git tools, model calls, and connections run outside the command sandbox. They retain their own application permissions. The shell does not claim to sandbox the entire desktop application.
 
 The Windows shell has passed `cargo check --locked --jobs 2 --manifest-path desktop/src-tauri/Cargo.toml` with staged backend/helper resources. This verifies Rust types, build scripts and resource generation, not linking, launching a desktop window, or installing a release package. `Cargo.lock` is kept for reproducible dependency resolution; generated schemas and staged binaries are ignored.
+
+
+Host terminals use the backend's pty4j native bridge (ConPTY on Windows, PTY on Unix) and xterm.js. The shell requests authenticated terminal cleanup before killing Java on normal application exit. Panel hiding keeps sessions alive; refreshing the webview reconnects them; restarting the application does not restore processes. These are explicitly user-operated host sessions and do not change Agent sandbox policy. Windows packaged-JAR browser integration and Rust type checks are covered; macOS/Linux terminal behavior and full desktop installers still need native testing.

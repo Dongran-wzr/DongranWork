@@ -92,7 +92,7 @@ Windows 默认使用已安装的 Edge；其他系统使用 Playwright Chromium�
 - 规划模式在服务端拒绝工具调用；命令、钩子和写入遵守任务模式及审批设置。
 - 任务取消会中断执行、结束子进程、使待审批请求失效；退出后未结束的记录在下次启动时恢复为中断状态。
 - 调度只在服务存活时执行，不补跑应用离线期间错过的计划。手动执行和计划执行均有记录。
-- 终端目前是逐条命令执行器，不是持久 PTY：交互程序以及跨命令保留的 `cd`、环境变量尚不支持。
+- 终端提供两种明确区分的模式：本机 PTY（持久 Shell、真实项目目录、系统用户权限），以及沙箱命令（逐条执行、项目快照、禁止联网）。本机 PTY 不提供给 Agent 工具调用。
 
 ## Agent 团队编排
 
@@ -164,7 +164,7 @@ Rerank 可选，不配置也能使用向量检索；重排失败时保留原始�
 
 ### Rust 命令沙箱
 
-Agent 的 `run_command`、任务钩子及内置终端命令通过同一 `CommandService → SandboxExecutor → dongran-sandbox` 路径。图形化 Git 固定操作、文件工具、模型请求和 MCP 不在该进程沙箱内，继续遵循各自的授权规则。Agent 发起 Git 状态 / 差异查询需要单独的宿主 Git 审批，因为 Git 配置中的过滤器或文件监视器可能启动程序。`GET /api/sandbox/status?refresh=true` 返回实际能力；缺失助手或隔离自检失败会阻止执行，没有隐式宿主机回退。
+Agent 的 `run_command`、任务钩子及内置终端的沙箱命令模式通过同一 `CommandService → SandboxExecutor → dongran-sandbox` 路径。图形化 Git 固定操作、文件工具、模型请求和 MCP 不在该进程沙箱内，继续遵循各自的授权规则。Agent 发起 Git 状态 / 差异查询需要单独的宿主 Git 审批，因为 Git 配置中的过滤器或文件监视器可能启动程序。`GET /api/sandbox/status?refresh=true` 返回实际能力；缺失助手或隔离自检失败会阻止执行，没有隐式宿主机回退。
 
 每条命令建立独立快照，排除 Git 元数据、环境文件、凭据目录、链接 / Windows reparse points 及配置中的排除路径；上限 20000 个文件、单文件 32 MB、合计 256 MB。只对退出成功的命令回写，回写前核对所有目标的原始 SHA-256，逐文件原子替换；检测到冲突时停止并保留快照。多文件写入不是文件系统事务：回写期间的外部改动或 I/O 错误仍可能让部分文件先完成回写，结果会标记失败，用户需结合差异复核。取消与开始回写互斥，已经进入回写阶段的操作完成后才结束取消请求。
 
@@ -195,3 +195,17 @@ Agent 的 `search_knowledge` 结果以来源消息持久化，回答可使用 `[
 供应商“能力检测”分别探测普通回答、JSON 结构输出、原生工具调用，发送固定测试样例，不执行返回的工具。结果按配置 revision 保存在本机，配置改变后显示未检测。`POST/GET /api/model-providers/{id}/capabilities` 用于执行/读取检测。“未验证”不等于断言服务永不支持该能力，连接成功也不等于工具能力通过。
 
 点击回到最新和发送后的定位使用约 340ms ease-out 动画，尊重减少动态效果偏好；流式 token 不逐次重复启动动画，用户上滚可立即停止跟随。`verify-citations.cjs` 验证真实动画中间帧、用户打断、来源跳转、能力按钮和重启保留。
+
+
+## 交互式终端
+
+`TerminalService` 使用 pty4j（Windows ConPTY / Unix PTY），前端采用 xterm.js；不需要单独运行 Node 服务，也不要求用户安装 Docker。Windows 提供已安装的 PowerShell、PowerShell 7、CMD、Git Bash；Unix 提供可用的 Bash、Zsh、sh。PowerShell 使用无 profile 会话，并由新进程计算标准模块目录，不继承启动器注入的 PSModulePath。
+
+- `/api/terminals`：列出、新建、关闭所有本机会话；新建必须携带明确选择标记 `confirmed=true`、有效项目与 Shell 配置。
+- `/api/terminals/profiles`：本机可用 Shell；`/{id}/input`、`/{id}/resize`、`PATCH /{id}`、`DELETE /{id}`：输入、尺寸、重命名和关闭。
+- `/api/terminals/poll`：批量增量读取输出，前端按 cursor 回放；内存限制 512 Ki 字符/会话、最多 12 个本机会话，终端滚动缓冲 10,000 行。进程输出不写入 SQLite。
+- 本机模式保留目录、环境变量、交互输入和彩色输出，不受沙箱模式 120 秒命令超时限制。关闭面板继续运行；垃圾桶终止会话。页面刷新可重新连接后端保留的会话，应用重启不恢复进程。
+- Tauri 退出前通过已认证本机接口关闭 PTY，再结束 Java；Spring 正常关闭同样回收会话。系统强制杀进程或应用崩溃不等于正常关闭，尚未做所有平台的崩溃恢复验收。
+- 本机执行直接修改真实项目，联网能力取决于操作系统和网络配置；允许用户本机终端不等于给 Agent 解除沙箱。
+
+验证：`TerminalServiceTest` 使用真实 PTY 测试目录/环境保持、交互读取、独立会话、Ctrl+C、尺寸调整及退出；`node prototype/verify-terminal.cjs` 使用隔离项目验证打包后的原生库、鉴权、多会话分屏、搜索、重命名、刷新恢复和真实沙箱命令。Windows 已执行验证，macOS/Linux 尚待实机验收。

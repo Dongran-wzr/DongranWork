@@ -44,7 +44,8 @@ public class PersistenceConfiguration {
         "db/V005__sandbox_commands.sql",
         "db/V006__local_vectors.sql",
         "db/V007__pdf_extraction_status.sql",
-        "db/V008__model_capabilities.sql"
+        "db/V008__model_capabilities.sql",
+        "db/V009__context_memory.sql"
       };
       for (int index = 0; index < migrations.length; index++) {
         int version = index + 1;
@@ -72,6 +73,8 @@ public class PersistenceConfiguration {
           "UPDATE tasks SET status='interrupted',error='应用已退出，任务被中断。' WHERE status IN ('queued','running','awaiting_approval')");
       statement.executeUpdate(
           "UPDATE command_runs SET status='interrupted' WHERE status IN ('queued','running')");
+      statement.executeUpdate(
+          "UPDATE tool_executions SET status='uncertain' WHERE status='running'");
       statement.executeUpdate("UPDATE approvals SET status='expired' WHERE status='pending'");
     }
     return source;

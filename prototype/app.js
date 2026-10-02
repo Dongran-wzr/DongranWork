@@ -223,7 +223,7 @@ const actions={
   'focus-input':()=>resumeWorkspace(()=>{window.DongranPages?.close();$('#prompt').focus();}),
   'clear-input':()=>resumeWorkspace(()=>{window.DongranPages?.close();$('#prompt').value='';$('#prompt').focus();}),
   'view-menu':(trigger)=>window.DongranUI.showMenu(trigger,{label:'视图',items:[{value:'show-terminal',label:'终端',icon:'square-terminal'},{value:'show-artifacts',label:'任务产物',icon:'panel-right'},{value:'toggle-sidebar',label:'侧栏',icon:'panel-left'}],onSelect:value=>actions[value]()}),
-  'show-terminal':()=>resumeWorkspace(()=>{closeDialog();if($('#terminal-dock').hidden)$('#terminal-toggle').click();else $('#terminal-input')?.focus();}),
+  'show-terminal':()=>resumeWorkspace(()=>{closeDialog();if($('#terminal-dock').hidden)$('#terminal-toggle').click();else window.DongranTerminal?.focus();}),
   'show-artifacts':()=>resumeWorkspace(()=>{closeDialog();window.DongranPages?.close();setPanel(true);renderInspector();}),
   'toggle-sidebar':()=>{closeDialog();actions.sidebar();},
   fullscreen:async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{toast('当前浏览器不支持全屏');}},
