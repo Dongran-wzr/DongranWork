@@ -58,7 +58,8 @@ public class TaskController {
 
   @PostMapping("/tasks/{id}/messages")
   public Object reply(@PathVariable String id, @Valid @RequestBody MessageRequest body) {
-    return agents.reply(id, body.prompt());
+    return agents.reply(
+        id, body.prompt(), body.skillIds(), !Boolean.FALSE.equals(body.autoSkills()));
   }
 
   @PostMapping("/tasks/{id}/cancel")

@@ -71,7 +71,7 @@
     {id:'git', label:'Git 与工作树', icon:'git-branch', group:'Agent 与项目', subtitle:'配置版本管理和任务工作目录。', status:'待接入'},
     {id:'data', label:'数据与配置', icon:'database', group:'管理', subtitle:'备份、迁移或重置你的个人偏好。'}
   ].concat(modules.flatMap(module => module.categories || []));
-  const categoryOrder = ['account','general','appearance','shortcuts','pet','models','agents','context','memory','permissions','terminal','git','extensions','hooks','connections','websearch','data'];
+  const categoryOrder = ['account','general','appearance','shortcuts','pet','models','agents','skills','context','memory','permissions','terminal','git','extensions','hooks','connections','websearch','data'];
   categories.sort((left,right) => categoryOrder.indexOf(left.id) - categoryOrder.indexOf(right.id));
   const byKey = new Map(definitions.map(definition => [definition.key, definition]));
   const defaults = Object.freeze(Object.fromEntries(definitions.map(definition => [definition.key, definition.default])));
@@ -237,7 +237,7 @@
     document.getElementById('settings-subtitle').textContent = searchTerm ? `${matches.length + extraMatches.length} 个设置项与“${query.trim()}”相关` : category.subtitle;
     const badge = document.getElementById('settings-category-status');
     badge.hidden = !!searchTerm || !category.status;
-    badge.textContent = window.DongranRuntime?.enabled && ['models','agents','context','memory','permissions','terminal','git','extensions','hooks','connections'].includes(activeCategory) ? '本地服务' : category.status || '';
+    badge.textContent = window.DongranRuntime?.enabled && ['models','agents','skills','context','memory','permissions','terminal','git','extensions','hooks','connections'].includes(activeCategory) ? '本地服务' : category.status || '';
     badge.title = '配置已保存，相关服务尚未接入';
     document.getElementById('settings-reset-category').hidden = !!searchTerm || activeCategory === 'data' || category.resettable === false || (window.DongranRuntime?.enabled && activeCategory==='models');
     if (!searchTerm && activeCategory === 'data') content.innerHTML = renderData();

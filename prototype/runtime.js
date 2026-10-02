@@ -121,8 +121,8 @@
       if(state.attachments.length){toast('请先把附件导入知识库，或放入项目目录后在任务中说明路径。');return;}
       submitting=true;
       await settingsQueue;
-      const value=current?await request(`/api/tasks/${current.id}/messages`,'POST',{prompt}):await request('/api/tasks','POST',{prompt,projectId:projectId(),mode:$('#mode').value});
-      state.active=value.id;followLatest=true;animateNext=true;$('#prompt').value='';await reloadTasks();await renderTask();
+      const value=current?await request(`/api/tasks/${current.id}/messages`,'POST',{prompt,...window.DongranSkills?.payload()}):await request('/api/tasks','POST',{prompt,projectId:projectId(),mode:$('#mode').value,...window.DongranSkills?.payload()});
+      window.DongranSkills?.reset();state.active=value.id;followLatest=true;animateNext=true;$('#prompt').value='';await reloadTasks();await renderTask();
     }catch(error){toast(error.message);}finally{submitting=false;}
   }
   function knowledgeButton(row,query=''){
@@ -136,6 +136,7 @@
     markdownFrame=requestAnimationFrame(()=>{markdownFrame=0;const target=$('#runtime-stream');if(target){target.innerHTML=answerMarkup(pendingText);bindCitations(target);}scrollLatest();});
   }
   function messageMarkup(message){
+    if(message.role==='skill_status'){try{const r=JSON.parse(message.content);return `<div class="skill-status">${icon('book-open')}已加载 ${esc(r.name)} · v${esc(r.version)} · ${esc(r.reason)}</div>`;}catch{return '';}}
     if(message.role==='route'){try{const route=JSON.parse(message.content);const names={search_knowledge:'知识库检索',web_fetch:'读取网页',web_search:'搜索网页',list_files:'查看项目文件'};return `<div class="intent-route">${esc(route.actions.map(a=>names[a]||a).join(' → ')||'理解问题并回答')}</div>`;}catch{return '';}}
     if(message.role==='web_source'){try{const data=JSON.parse(message.content),rows=data.tool==='web_fetch'?[data.result]:(data.result.results||[]);return `<section class="knowledge-sources"><small>${data.tool==='web_fetch'?'已读取网页':'网页搜索结果'}</small><div>${rows.filter(row=>/^https?:\/\//i.test(row.url||'')).map(row=>`<a class="knowledge-citation" href="${esc(row.url)}" target="_blank" rel="noopener noreferrer">${esc(row.title||row.url)}</a>`).join('')||'没有找到相关网页'}</div></section>`;}catch{return '';}}
     if(message.role==='memory_capture'){try{const data=JSON.parse(message.content);return `<div class="intent-route">${data.status==='completed'?(data.candidates?`已提炼 ${data.candidates} 条记忆候选，可在设置 → 记忆中审阅`:'本轮没有待保存的稳定记忆'):esc(data.message)}</div>`;}catch{return '';}}

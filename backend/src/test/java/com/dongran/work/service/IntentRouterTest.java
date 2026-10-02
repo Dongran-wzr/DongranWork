@@ -35,6 +35,15 @@ class IntentRouterTest {
   }
 
   @Test
+  void skillScriptExecutionHonorsReadOnlyIntent() throws Exception {
+    for (String prompt : List.of("运行技能脚本检查项目", "执行技能检查", "运行脚本", "执行脚本")) {
+      assertThat(router.route(prompt, "", true).goal()).isEqualTo("execute");
+      assertThat(router.route("只讨论如何实现" + prompt, "", true).goal()).isEqualTo("answer");
+    }
+    verifyNoInteractions(model);
+  }
+
+  @Test
   void contextClassifierAcceptsOnlyAllowedActions() throws Exception {
     when(model.complete(any(), any(), any()))
         .thenReturn(

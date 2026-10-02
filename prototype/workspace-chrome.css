@@ -1,0 +1,22 @@
+/* Desktop chrome: quiet scrollbars and a sliding, fixed-width sidebar. */
+:root { --sidebar-width: 274px; --scroll-thumb: color-mix(in srgb, var(--text-primary) 22%, transparent); --scroll-thumb-hover: color-mix(in srgb, var(--text-primary) 38%, transparent); }
+* { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+.settings-navigation, .settings-main { scrollbar-color: var(--scroll-thumb) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 20px; background: var(--scroll-thumb); background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: var(--scroll-thumb-hover); }
+::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+@supports selector(::-webkit-scrollbar) {
+  *, .settings-navigation, .settings-main, .terminal-tabs, .terminal-canvas .xterm-viewport { scrollbar-width: auto; scrollbar-color: auto; }
+}
+.app { transition: padding-left 260ms cubic-bezier(.22,.8,.3,1); }
+.app > .sidebar { display: flex; width: var(--sidebar-width); min-width: var(--sidebar-width); flex: 0 0 var(--sidebar-width); margin-left: 0; transform: translateX(0); opacity: 1; transition: margin-left 260ms cubic-bezier(.22,.8,.3,1), transform 260ms cubic-bezier(.22,.8,.3,1), opacity 180ms ease; }
+.sidebar-collapsed .app > .sidebar { display: flex; margin-left: calc(-1 * var(--sidebar-width)); transform: translateX(-100%); opacity: 0; pointer-events: none; }
+#account-profile { border-radius: 9px; transition: background 140ms ease; }
+#account-profile[aria-expanded="true"] { background: color-mix(in srgb, var(--text-primary) 7%, transparent); }
+#app-menu:has([data-value="account"]) { width: max(230px, calc(var(--sidebar-width) - 28px)); border-radius: 14px; padding: 7px; }
+#app-menu:has([data-value="account"]) .menu-heading { padding: 7px 10px; text-transform: none; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#app-menu:has([data-value="account"]) .menu-option { min-height: 36px; border-radius: 8px; }
+@media (prefers-reduced-motion: reduce) { .app, .app > .sidebar { transition: none; } }
+html[data-reduce-motion="true"] .app, html[data-reduce-motion="true"] .app > .sidebar { transition: none; }

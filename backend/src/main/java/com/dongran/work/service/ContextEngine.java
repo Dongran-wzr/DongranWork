@@ -313,6 +313,13 @@ public class ContextEngine {
     snapshot.put("toolEstimated", estimate(db.json(tools)));
     snapshot.put("estimation", "字符启发式估算，非服务商 tokenizer 精确值");
     snapshot.put("memories", selected);
+    snapshot.put(
+        "skills",
+        db.jdbc.queryForList(
+            "SELECT skill_id,name,version,reason,estimated_tokens,created_at FROM skill_loads WHERE task_id=? AND role=? AND created_at>=? ORDER BY id DESC LIMIT 20",
+            task,
+            role,
+            state(task).getOrDefault("currentRequestAt", "")));
     snapshot.put("compactedMessages", removed.size());
     snapshot.put("summaryEvidenceId", summaryId);
     snapshot.put("status", estimated > budget ? "over_budget" : "ready");

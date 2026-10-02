@@ -36,6 +36,8 @@
   <script defer src="settings-account.js"></script>
   <script defer src="settings-search.js"></script>
   <script defer src="context-engine.js"></script>
+  <link rel="stylesheet" href="skills.css">
+  <script defer src="skills.js"></script>
   <script defer src="settings.js"></script>
   <script defer src="scheduled-tasks.js"></script>
   <script defer src="workspace-pages.js"></script>
@@ -43,19 +45,20 @@
   <script defer src="knowledge-settings.js"></script>
   <link rel="stylesheet" href="runtime.css">
   <link rel="stylesheet" href="developer-tools.css">
+  <link rel="stylesheet" href="workspace-chrome.css">
   <script defer src="git-workspace.js"></script>
   <script defer src="model-providers.js"></script>
 </head>
 <body>
   <div class="desktop-bar">
-    <button class="icon-btn" data-action="sidebar" title="切换侧栏" aria-label="切换侧栏"><i data-lucide="panel-left"></i></button>
+    <button class="icon-btn" data-action="sidebar" title="切换侧栏" aria-label="切换侧栏" aria-controls="workspace-sidebar" aria-expanded="true"><i data-lucide="panel-left"></i></button>
     <span class="desktop-brand">Dongran</span><span class="desktop-divider"></span>
     <nav aria-label="应用菜单"><button id="file-menu-trigger" data-menu="file" aria-haspopup="menu" aria-expanded="false">文件</button><button id="edit-menu-trigger" data-menu="edit" aria-haspopup="menu" aria-expanded="false">编辑</button><button id="view-menu-trigger" data-menu="view" aria-haspopup="menu" aria-expanded="false">视图</button><button id="help-menu-trigger" data-menu="help" aria-haspopup="menu" aria-expanded="false">帮助</button></nav>
     <span class="desktop-caption">本地工作区</span>
     <button class="icon-btn" data-action="fullscreen" title="切换全屏" aria-label="切换全屏"><i data-lucide="maximize"></i></button>
   </div>
   <div class="app">
-    <aside class="sidebar">
+    <aside class="sidebar" id="workspace-sidebar">
       <div class="brand"><span class="workspace-mode"><i data-lucide="square-terminal"></i>工作台</span><span class="brand-subtitle">Agent</span></div>
       <nav class="main-nav" aria-label="主导航">
         <button data-action="new"><i data-lucide="square-pen"></i>新的任务</button>
@@ -69,7 +72,7 @@
       <div id="task-list" class="task-list"></div>
       <div class="sidebar-bottom">
         <nav class="utility-nav"><button data-action="files"><i data-lucide="folder-tree"></i>项目文件</button><button data-action="team"><i data-lucide="bot"></i>Agent 团队<span class="utility-count">4</span></button><button data-action="settings"><i data-lucide="sliders-horizontal"></i>工作区设置</button></nav>
-        <div class="account"><button id="account-profile" class="account-profile" type="button" data-action="account" title="账户设置" aria-label="账户设置"><span class="user-avatar" data-account-avatar>D</span><span data-account-name>Dongran-wzr</span></button><span class="dot"></span><button id="settings-button" class="icon-btn" title="设置" aria-label="设置" data-action="settings"><i data-lucide="settings-2"></i></button></div>
+        <div class="account"><button id="account-profile" class="account-profile" type="button" data-action="account" title="账户菜单" aria-label="账户菜单" aria-haspopup="menu" aria-expanded="false"><span class="user-avatar" data-account-avatar>D</span><span data-account-name>Dongran-wzr</span></button><span class="dot"></span><button id="settings-button" class="icon-btn" title="设置" aria-label="设置" data-action="settings"><i data-lucide="settings-2"></i></button></div>
       </div>
     </aside>
     <main class="workspace">

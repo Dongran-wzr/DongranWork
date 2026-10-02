@@ -219,7 +219,7 @@ const actions={
   projects:showProjects,demo:()=>openProject('dongran-console',true),'open-directory':pickDirectory,new:newTask,search:searchDialog,
   knowledge:()=>window.DongranPages.open('knowledge'),schedules:()=>window.DongranPages.open('schedules'),
   files:()=>{if(!state.project){showProjects();return;}window.DongranPages?.close();state.tab='files';setPanel(true);renderInspector();},
-  panel:()=>{window.DongranPages?.close();setPanel(!state.panel);renderInspector();},sidebar:()=>document.body.classList.toggle('sidebar-collapsed'),
+  panel:()=>{window.DongranPages?.close();setPanel(!state.panel);renderInspector();},sidebar:()=>{window.DongranUI.closeMenu({immediate:true,restoreFocus:false});const collapsed=document.body.classList.toggle('sidebar-collapsed');const sidebar=$('.sidebar');sidebar.inert=collapsed;sidebar.setAttribute('aria-hidden',String(collapsed));const trigger=document.querySelector('[data-action="sidebar"]');trigger.setAttribute('aria-expanded',String(!collapsed));if(collapsed&&sidebar.contains(document.activeElement))trigger.focus();},
   'focus-input':()=>resumeWorkspace(()=>{window.DongranPages?.close();$('#prompt').focus();}),
   'clear-input':()=>resumeWorkspace(()=>{window.DongranPages?.close();$('#prompt').value='';$('#prompt').focus();}),
   'view-menu':(trigger)=>window.DongranUI.showMenu(trigger,{label:'视图',items:[{value:'show-terminal',label:'终端',icon:'square-terminal'},{value:'show-artifacts',label:'任务产物',icon:'panel-right'},{value:'toggle-sidebar',label:'侧栏',icon:'panel-left'}],onSelect:value=>actions[value]()}),
@@ -231,7 +231,7 @@ const actions={
   team:async()=>{if(window.DongranRuntime?.enabled){try{const id=window.DongranProjects.current()?.id;if(id){const tasks=await window.DongranRuntime.request('/api/tasks?projectId='+encodeURIComponent(id));const active=tasks.find(t=>['queued','running','awaiting_approval'].includes(t.status));if(active){const plan=await window.DongranRuntime.request('/api/tasks/'+active.id+'/team');showDialog('当前 Agent 团队',`<p class="team-summary">${escapeHtml(plan.summary)}</p><div class="team-directory"><div class="team"><span class="agent-avatar lead">${icon('sparkles')}</span><div><strong>主 Agent</strong><small>拆解任务、调度协作者、复核结果</small></div><span class="online"></span></div>${plan.specialists.map(s=>`<div class="team"><span class="agent-avatar specialist">${escapeHtml(s.label.slice(0,1))}</span><div><strong>${escapeHtml(s.label)}</strong><small>${escapeHtml(s.purpose)} · ${escapeHtml(s.reason)}</small></div><span class="online"></span></div>`).join('')}</div>`);return;}}}catch(error){toast(error.message);}showDialog('Agent 团队',`<div class="team-directory"><div class="team"><span class="agent-avatar lead">${icon('sparkles')}</span><div><strong>主 Agent</strong><small>根据任务意图动态选择专业协作者</small></div><span class="online"></span></div><p class="empty-note">开始一个任务后，这里会显示本次任务实际启用的专业角色。</p></div>`)}} ,
   'close-dialog':closeDialog,attach:()=>$('#file-input').click(),run:runTests,
   settings:()=>window.DongranSettings.open(),
-  account:()=>window.DongranSettings.open('account'),
+  account:(trigger)=>window.DongranUI.showMenu(trigger,{label:window.DongranSettings.get('accountNickname')||'我的账户',showHeading:true,items:[{type:'separator'},{value:'account',label:'账户',icon:'user-round'},{value:'settings',label:'设置',icon:'settings-2',shortcut:'Ctrl+,'}],onSelect:value=>window.DongranSettings.open(value==='account'?'account':'general')}),
   'edit-doc':()=>{const doc=$('#doc-content');if(!doc)return;const editing=doc.contentEditable==='true';if(editing){task().doc=doc.innerHTML;renderInspector();toast('文档已保存至当前会话');}else{doc.contentEditable='true';doc.focus();const b=$('[data-action="edit-doc"]');b.innerHTML=icon('check');b.title='保存文档';b.setAttribute('aria-label','保存文档');icons();}},
   download:()=>{const doc=$('#doc-content');if(!doc)return;const url=URL.createObjectURL(new Blob([doc.innerText],{type:'text/plain;charset=utf-8'}));const link=document.createElement('a');link.href=url;link.download='member-permissions.txt';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 };
@@ -283,7 +283,7 @@ function applyWorkspacePreferences(event) {
   root.dataset.showActivity=String(prefs.showActivity);
   root.dataset.showSuggestions=String(prefs.showSuggestions);
   root.style.setProperty('--ui-font-size',`${prefs.fontSize}px`);
-  $('.sidebar').style.width=`${prefs.sidebarWidth}px`;
+  document.documentElement.style.setProperty('--sidebar-width',`${prefs.sidebarWidth}px`);
   if(['init','import','reset','reset-category','defaultModel'].includes(event.detail.key)){state.model=prefs.defaultModel;$('#model-label').textContent=state.model;window.DongranRuntime?.enabled&&window.DongranProviders?.sync();}
   if(['init','import','reset','reset-category','permissionMode'].includes(event.detail.key)){$('#mode').value=prefs.permissionMode;$('#mode-label').textContent=prefs.permissionMode;}
   if(event.detail.key==='artifactPanel'&&task()?.sample){setPanel(prefs.artifactPanel==='auto');renderInspector();}

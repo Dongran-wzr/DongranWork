@@ -152,4 +152,29 @@ class SandboxIntegrationTest {
     assertThat(unavailable.status(true).get("available")).isEqualTo(false);
     assertThatThrownBy(unavailable::requireAvailable).hasMessageContaining("未切换为宿主机执行");
   }
+
+  @Test
+  void skillScriptRunsOnlyInsideSandboxAndBundleIsNotSynced() throws Exception {
+    assertThat(sandbox.status(true).get("available")).isEqualTo(true);
+    Path root = temporary();
+    String project = projects.open(root.toString()).id();
+    String script =
+        "param([string]$Value); [System.IO.File]::WriteAllText((Join-Path $env:DONGRAN_SANDBOX_WORKSPACE 'skill-result.txt'), $Value); Write-Output 'skill-sandbox-ok'";
+    String argument = "literal; Write-Output injected";
+    var result =
+        finished(
+            commands.startSkill(
+                project,
+                null,
+                Map.of(
+                    "scripts/check.ps1", script.getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                "scripts/check.ps1",
+                List.of(argument),
+                20));
+    assertThat(result.get("status")).as(result.toString()).isEqualTo("completed");
+    assertThat(result.get("executionMode")).isEqualTo("sandbox-required");
+    assertThat(Files.readString(root.resolve("skill-result.txt"))).isEqualTo(argument);
+    assertThat(result.get("output").toString()).contains("skill-sandbox-ok");
+    assertThat(Files.exists(root.resolve(".dongran/skill-run"))).isFalse();
+  }
 }

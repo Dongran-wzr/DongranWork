@@ -28,6 +28,75 @@ public class CommandService {
   private final ConcurrentMap<String, Object> commandLocks = new ConcurrentHashMap<>();
   private volatile boolean closing;
 
+  private record SkillRun(Map<String, byte[]> files, String script, List<String> arguments) {}
+
+  private final ConcurrentMap<String, SkillRun> skillRuns = new ConcurrentHashMap<>();
+
+  public String startSkill(
+      String projectId,
+      String taskId,
+      Map<String, byte[]> files,
+      String script,
+      List<String> arguments,
+      int timeout) {
+    if (closing) throw ApiException.conflict("应用正在退出。");
+    if (timeout < 1 || timeout > 600) throw ApiException.bad("超时范围不合法。");
+    skillArgv(Path.of("."), script, arguments); // Validate before queuing.
+    sandbox.requireAvailable();
+    projects.root(projectId);
+    String id = Database.id();
+    repository.insertQueued(
+        id, projectId, taskId, "skill: " + script, Database.now(), Database.now());
+    commandLocks.put(id, new Object());
+    skillRuns.put(id, new SkillRun(Map.copyOf(files), script, List.copyOf(arguments)));
+    executor.submit(() -> execute(id, projectId, "skill: " + script, timeout));
+    return id;
+  }
+
+  static List<String> skillArgv(Path root, String script, List<String> arguments) {
+    if (!script.startsWith("scripts/")
+        || script.contains("..")
+        || script.indexOf('\0') >= 0
+        || script.indexOf(':') >= 0
+        || script.contains("\\")) throw ApiException.bad("技能脚本路径不合法。");
+    boolean windows = System.getProperty("os.name").startsWith("Windows");
+    String interpreter;
+    if (script.endsWith(".ps1") && windows)
+      interpreter =
+          Path.of(
+                  System.getenv().getOrDefault("SystemRoot", "C:/Windows"),
+                  "System32/WindowsPowerShell/v1.0/powershell.exe")
+              .toString();
+    else if (script.endsWith(".sh") && !windows) interpreter = "/bin/sh";
+    else if (script.endsWith(".py"))
+      interpreter = findSkillRuntime(windows ? "python.exe" : "python3");
+    else if (script.endsWith(".js") || script.endsWith(".mjs"))
+      interpreter = findSkillRuntime(windows ? "node.exe" : "node");
+    else throw ApiException.bad("此平台支持的技能脚本为 Python、JavaScript，以及 Windows PowerShell / Unix sh。");
+    var argv = new ArrayList<String>();
+    argv.add(interpreter);
+    if (script.endsWith(".ps1"))
+      argv.addAll(
+          List.of(
+              "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File"));
+    argv.add(root.resolve(script).toAbsolutePath().normalize().toString());
+    argv.addAll(arguments);
+    return argv;
+  }
+
+  private static String findSkillRuntime(String name) {
+    for (String dir :
+        System.getenv()
+            .getOrDefault("PATH", "")
+            .split(java.util.regex.Pattern.quote(java.io.File.pathSeparator))) {
+      if (dir.isBlank()) continue;
+      Path p = Path.of(dir).resolve(name).toAbsolutePath();
+      if (java.nio.file.Files.isRegularFile(p) && java.nio.file.Files.isExecutable(p))
+        return p.toString();
+    }
+    throw ApiException.bad("未找到脚本运行时：" + name);
+  }
+
   public CommandService(
       CommandRepository repository,
       Database db,
@@ -128,7 +197,22 @@ public class CommandService {
         repository.sandbox(id, backend, workspace, "not-applied");
         return;
       }
-      run = sandbox.launch(id, snapshot.workspace(), shell(command), timeout);
+      SkillRun skill = skillRuns.get(id);
+      List<String> argv = shell(command);
+      if (skill != null) {
+        Path bundle = snapshot.workspace().resolve(".dongran/skill-run");
+        java.nio.file.Files.createDirectories(bundle);
+        for (var file : skill.files().entrySet()) {
+          Path target = bundle.resolve(file.getKey()).normalize();
+          if (!target.startsWith(bundle) || target.equals(bundle))
+            throw ApiException.bad("技能脚本路径越界。");
+          java.nio.file.Files.createDirectories(target.getParent());
+          java.nio.file.Files.write(
+              target, file.getValue(), java.nio.file.StandardOpenOption.CREATE_NEW);
+        }
+        argv = skillArgv(bundle, skill.script(), skill.arguments());
+      }
+      run = sandbox.launch(id, snapshot.workspace(), argv, timeout);
       sandboxRuns.put(id, run);
       if (closing || cancelled.contains(id)) run.cancel();
       SandboxExecutor.Run active = run;
@@ -210,6 +294,7 @@ public class CommandService {
       sandboxRuns.remove(id);
       cancelled.remove(id);
       commandLocks.remove(id);
+      skillRuns.remove(id);
       if (acquired) slots.release();
     }
   }

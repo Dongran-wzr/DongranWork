@@ -48,7 +48,9 @@ public class IntentRouter {
       actions.add("list_files");
     }
     String goal =
-        has(prompt, "实现", "修复", "修改代码", "运行测试", "执行命令", "写入", "生成文件", "创建文件", "保存到", "运行验证")
+        has(
+                    prompt, "实现", "修复", "修改代码", "运行测试", "执行命令", "写入", "生成文件", "创建文件", "保存到", "运行验证",
+                    "运行技能", "执行技能", "运行脚本", "执行脚本")
                 && !readOnly
             ? "execute"
             : "answer";

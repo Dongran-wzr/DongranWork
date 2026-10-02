@@ -233,9 +233,9 @@
   document.getElementById('dialog')?.addEventListener('close', () => { draft = null; removal = null; });
   (window.DongranSettingsModules ||= []).push({
     categories:[
-      {id:'extensions', label:'扩展管理', icon:'blocks', group:'集成', subtitle:'管理项目可使用的扩展能力。', searchKeywords:'扩展 插件 需求文档 代码审查 浏览器验证 extensions plugins', status:'待接入'},
-      {id:'hooks', label:'钩子', icon:'workflow', group:'集成', subtitle:'配置任务与工具执行前后的命令。', searchKeywords:'钩子 命令 事件 超时 失败策略 before-task before-tool after-task hooks', status:'待接入'},
-      {id:'connections', label:'连接', icon:'plug', group:'集成', subtitle:'管理 MCP 服务与代码平台连接。', searchKeywords:'MCP HTTP SSE GitHub 连接 服务地址 connections', status:'待接入'}
+      {id:'extensions', label:'扩展管理', icon:'blocks', group:'集成', subtitle:'管理项目可使用的扩展能力。', searchKeywords:'扩展 插件 需求文档 代码审查 浏览器验证 extensions plugins', status:'技能已接入'},
+      {id:'hooks', label:'钩子', icon:'workflow', group:'集成', subtitle:'配置任务与工具执行前后的命令。', searchKeywords:'钩子 命令 事件 超时 失败策略 before-task before-tool after-task hooks', status:'技能已接入'},
+      {id:'connections', label:'连接', icon:'plug', group:'集成', subtitle:'管理 MCP 服务与代码平台连接。', searchKeywords:'MCP HTTP SSE GitHub 连接 服务地址 connections', status:'技能已接入'}
     ],
     definitions:[
       {key:keys.extensions, category:'extensions', section:'扩展配置', title:'已添加扩展', description:'保存在本机的扩展配置。', icon:'blocks', type:'collection', hidden:true, default:[], validate:validExtensions},
@@ -244,6 +244,7 @@
     ],
     render(category, context) {
       renderApi = context;
+      if (category === 'extensions' && window.DongranRuntime?.enabled) return `<section class="settings-section"><h2>技能与工具扩展</h2><p>原有需求文档、代码审查和浏览器验证已迁移为真实技能包，可在技能管理中启用、编辑或卸载。</p><button class="settings-command" data-open-skills>管理技能</button><p class="integration-footnote">MCP 工具连接在连接管理中配置。第三方界面插件和在线扩展市场尚未开放。</p></section>`;
       if (category === 'extensions') return renderExtensions();
       if (category === 'hooks') return renderHooks();
       if (category === 'connections') return renderConnections();

@@ -45,7 +45,8 @@ public class PersistenceConfiguration {
         "db/V006__local_vectors.sql",
         "db/V007__pdf_extraction_status.sql",
         "db/V008__model_capabilities.sql",
-        "db/V009__context_memory.sql"
+        "db/V009__context_memory.sql",
+        "db/V010__skills.sql"
       };
       for (int index = 0; index < migrations.length; index++) {
         int version = index + 1;

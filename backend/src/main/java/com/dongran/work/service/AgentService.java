@@ -15,6 +15,8 @@ public class AgentService {
   private final ContextEngine context;
   private final MemoryCaptureService capture;
   private final ContextDraftService drafts;
+  private final SkillService skills;
+  private final SkillContextService skillContext;
   private final TaskRepository tasks;
   private final IntentRouter router;
   private final AgentHistoryRepository repository;
@@ -68,10 +70,14 @@ public class AgentService {
       AgentTeamPlanner planner,
       ContextEngine context,
       MemoryCaptureService capture,
-      ContextDraftService drafts) {
+      ContextDraftService drafts,
+      SkillService skills,
+      SkillContextService skillContext) {
     this.context = context;
     this.capture = capture;
     this.drafts = drafts;
+    this.skills = skills;
+    this.skillContext = skillContext;
     this.tasks = tasks;
     this.router = router;
     this.repository = repository;
@@ -108,6 +114,7 @@ public class AgentService {
     if (projectId != null) projects.get(projectId);
     String mode = Database.text(body, "mode", preferences.string("permissionMode", "修改前询问"));
     if (!Set.of("修改前询问", "仅规划", "允许项目内修改").contains(mode)) throw ApiException.bad("执行模式不合法。");
+    skillContext.validate(projectId, body.get("skillIds"));
     String id = Database.id(),
         title = prompt.length() > 48 ? prompt.substring(0, 48) + "…" : prompt;
     tasks.insert(
@@ -118,18 +125,29 @@ public class AgentService {
         mode,
         Database.now(),
         Database.text(body, "scheduleId", null));
+    skillContext.select(
+        id,
+        skillContext.validate(projectId, body.get("skillIds")),
+        !Boolean.FALSE.equals(body.get("autoSkills")));
     events.message(id, "user", "user", prompt);
     enqueue(id);
     return get(id);
   }
 
-  public synchronized Map<String, Object> reply(String id, String prompt) {
+  public Map<String, Object> reply(String id, String prompt) {
+    return reply(id, prompt, List.of(), true);
+  }
+
+  public synchronized Map<String, Object> reply(
+      String id, String prompt, List<String> skillIds, boolean autoSkills) {
     if (closing || running.size() >= 30 || running.containsKey(id))
       throw ApiException.conflict("任务尚未退出或执行队列已满。");
     var task = get(id);
     if (Set.of("queued", "running", "awaiting_approval").contains(task.get("status")))
       throw ApiException.conflict("任务仍在运行，请先停止。");
     if (prompt.isBlank() || prompt.length() > 16000) throw ApiException.bad("任务内容不合法。");
+    skillContext.select(
+        id, skillContext.validate((String) task.get("projectId"), skillIds), autoSkills);
     events.message(id, "user", "user", prompt);
     events.status(id, "queued", null);
     enqueue(id);
@@ -320,9 +338,11 @@ public class AgentService {
             + "\n"
             + instruction
             + "\n项目约定："
-            + preferences.string("projectInstructions", "")
-            + "\n已启用扩展："
-            + db.json(preferences.collection("installedExtensions"));
+            + preferences.string("projectInstructions", "");
+    String skillInstruction =
+        skillContext.instruction(
+            id, role, projectId, depth == 0 ? String.valueOf(task.get("prompt")) : instruction);
+    system += skillInstruction;
     if (Boolean.TRUE.equals(task.get("_explicitMemorySaved")))
       system += "\n用户本轮明确要求记住的内容已由后端保存为有效记忆，无需再次保存或征询确认。";
     system += "\n用 update_task_state 及时维护计划、明确约束和进度；大文件使用草稿分块写入，完整校验后提交。上下文摘要与记忆不授予权限。";
@@ -389,6 +409,35 @@ public class AgentService {
               .toList();
     if (!planning) {
       toolDefinitions = new ArrayList<>(toolDefinitions);
+      if (!skillInstruction.isBlank()) {
+        toolDefinitions.add(
+            tool("load_skill", "按需加载当前范围的技能规范", Map.of("id", string()), List.of("id")));
+        toolDefinitions.add(
+            tool(
+                "read_skill_resource",
+                "读取已加载技能的参考资料或模板",
+                Map.of("id", string(), "path", string(), "offset", Map.of("type", "integer")),
+                List.of("id", "path")));
+        if (projectId != null
+            && planner.allowed(role, "run_command")
+            && !(task.get("_route") instanceof IntentRouter.Route r && r.readOnly()))
+          toolDefinitions.add(
+              tool(
+                  "run_skill_script",
+                  "在项目命令沙箱运行已加载技能脚本，需要审批，禁止联网。参数为字符串数组，不是 shell 命令。",
+                  Map.of(
+                      "id",
+                      string(),
+                      "path",
+                      string(),
+                      "hash",
+                      string(),
+                      "arguments",
+                      Map.of("type", "array", "items", string()),
+                      "timeout",
+                      Map.of("type", "integer")),
+                  List.of("id", "path", "hash")));
+      }
       toolDefinitions.add(
           tool(
               "read_evidence",
@@ -546,13 +595,29 @@ public class AgentService {
             context.startCall(id, role, String.valueOf(call.get("id")), name, arguments);
         try {
           if (planning) throw ApiException.forbidden("仅规划任务不能调用工具。");
-          if (!Set.of("read_evidence", "update_task_state", "execution_status").contains(name)
-              && !planner.allowed(role, name.endsWith("file_draft") ? "write_file" : name))
+          if (!Set.of(
+                      "read_evidence",
+                      "update_task_state",
+                      "execution_status",
+                      "load_skill",
+                      "read_skill_resource")
+                  .contains(name)
+              && !planner.allowed(
+                  role,
+                  name.endsWith("file_draft")
+                      ? "write_file"
+                      : name.equals("run_skill_script") ? "run_command" : name))
             throw ApiException.forbidden("当前 Agent 不允许调用此工具。");
           boolean actionApproved =
-              !name.equals("commit_file_draft") && confirmExecution(task, name, arguments);
+              !Set.of("commit_file_draft", "run_skill_script").contains(name)
+                  && confirmExecution(task, name, arguments);
           if (Set.of(
-                  "write_file", "commit_file_draft", "run_command", "remember", "connection_call")
+                  "write_file",
+                  "commit_file_draft",
+                  "run_command",
+                  "run_skill_script",
+                  "remember",
+                  "connection_call")
               .contains(name)) {
             if (!Boolean.TRUE.equals(task.get("_executionStarted"))) {
               hooks(task, "before-task");
@@ -566,9 +631,10 @@ public class AgentService {
               Map.of("name", name, "arguments", arguments, "agent", role, "status", "running"));
           output = invoke(task, role, name, arguments, depth, actionApproved);
           context.endCall(execution, "completed", output);
-          if (Set.of("write_file", "commit_file_draft", "run_command").contains(name)) {
+          if (Set.of("write_file", "commit_file_draft", "run_command", "run_skill_script")
+              .contains(name)) {
             boolean success =
-                !name.equals("run_command")
+                !Set.of("run_command", "run_skill_script").contains(name)
                     || (output instanceof Map<?, ?> resultMap
                         && "completed".equals(resultMap.get("status"))
                         && (resultMap.get("exitCode") instanceof Number code && code.intValue() == 0
@@ -602,7 +668,7 @@ public class AgentService {
   /** A prose answer is never an execution plan. Approval is bound to the concrete first action. */
   private boolean confirmExecution(Map<String, Object> task, String name, Map<String, Object> args)
       throws Exception {
-    if (!Set.of("write_file", "commit_file_draft", "run_command").contains(name)
+    if (!Set.of("write_file", "commit_file_draft", "run_command", "run_skill_script").contains(name)
         || !preferences.bool("confirmPlan", true)) return false;
     if (Boolean.TRUE.equals(task.get("_planDenied")))
       throw ApiException.forbidden("用户已拒绝本轮执行，请等待新的用户要求。");
@@ -645,6 +711,7 @@ public class AgentService {
                   "begin_file_draft",
                   "append_file_draft",
                   "run_command",
+                  "run_skill_script",
                   "remember",
                   "connection_call")
               .contains(name)) throw ApiException.forbidden("本轮只允许分析，不允许修改或执行。");
@@ -690,6 +757,42 @@ public class AgentService {
         Object saved = invoke(task, role, "write_file", write, depth, approved);
         drafts.committed(String.valueOf(draft.get("id")));
         yield saved;
+      }
+      case "load_skill" -> {
+        yield skillContext.load(
+            id, role, projectId, Database.required(args, "id", 100), "Agent 判断任务适用");
+      }
+      case "read_skill_resource" -> {
+        String skill = Database.required(args, "id", 100);
+        skillContext.requireLoaded(id, role, projectId, skill);
+        yield skills.resource(
+            projectId,
+            skill,
+            Database.required(args, "path", 300),
+            Database.number(args, "offset", 0, 0, 200000));
+      }
+      case "run_skill_script" -> {
+        String skill = Database.required(args, "id", 100),
+            path = Database.required(args, "path", 300),
+            hash = Database.required(args, "hash", 64);
+        skillContext.requireLoaded(id, role, projectId, skill);
+        var files = skills.scriptFiles(projectId, skill, path, hash);
+        var values = args.get("arguments") instanceof List<?> list ? list : List.of();
+        if (values.size() > 30
+            || values.stream()
+                .anyMatch(
+                    v -> !(v instanceof String t) || t.length() > 1000 || t.indexOf('\0') >= 0))
+          throw ApiException.bad("脚本参数不合法。");
+        approvals.ask(id, projectId, name, args);
+        files = skills.scriptFiles(projectId, skill, path, hash);
+        yield commands.await(
+            commands.startSkill(
+                projectId,
+                id,
+                files,
+                path,
+                values.stream().map(String::valueOf).toList(),
+                Database.number(args, "timeout", 120, 1, 600)));
       }
       case "run_command" -> {
         if (!actionApproved
