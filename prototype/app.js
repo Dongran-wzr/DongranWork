@@ -56,7 +56,21 @@ function icons(){
 function task(){ return state.tasks.find(t => t.id === state.active); }
 function setTaskTitle(title){ if(window.DongranPages)window.DongranPages.updateTaskTitle(title);else $('#header-title').textContent=title; }
 function toast(message){ clearTimeout(state.toastTimer); $('#toast').textContent=message; $('#toast').hidden=false; state.toastTimer=setTimeout(()=>$('#toast').hidden=true,3400); }
-function setPanel(open){ state.panel=open; $('#inspector').hidden=!open; $('.title-actions [data-action="panel"]').setAttribute('aria-expanded', String(open)); }
+let panelMotion;
+
+function updateTeamCount(count=1){const node=document.querySelector('#agent-team-count');if(node)node.textContent=String(Math.max(1,count));}
+
+function setPanel(open){
+  state.panel=open;const panel=$('#inspector'),trigger=$('.title-actions [data-action="panel"]');trigger.setAttribute('aria-expanded',String(open));
+  if(panel.contains(document.activeElement)&&!open)trigger.focus();
+  const wasHidden=panel.hidden,currentTransform=getComputedStyle(panel).transform,currentOpacity=getComputedStyle(panel).opacity;
+  panelMotion?.cancel();panel.inert=!open;panel.setAttribute('aria-hidden',String(!open));
+  const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches||document.documentElement.dataset.reduceMotion==='true';
+  if(reduced||(!open&&wasHidden)){panel.hidden=!open;return;}
+  panel.hidden=false;const start={transform:wasHidden?'translateX(100%)':currentTransform,opacity:wasHidden?0:currentOpacity};
+  panelMotion=panel.animate([start,{transform:open?'translateX(0)':'translateX(100%)',opacity:open?1:0}],{duration:240,easing:'cubic-bezier(.22,.8,.3,1)',fill:'both'});
+  const animation=panelMotion;animation.onfinish=()=>{if(panelMotion!==animation)return;panel.hidden=!state.panel;animation.cancel();panelMotion=null;};
+}
 function closeDialog(){ window.DongranUI.closeDialog(); }
 function showDialog(title,body){ window.DongranUI.showDialog(title,body); }
 async function resumeWorkspace(action){ if(!window.DongranSettings||await window.DongranSettings.close())action(); }

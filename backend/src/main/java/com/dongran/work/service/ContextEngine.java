@@ -213,8 +213,27 @@ public class ContextEngine {
       List<Map<String, Object>> conversation,
       List<Map<String, Object>> tools,
       int turn) {
+    return prepare(task, role, project, prompt, conversation, tools, turn, outputReserve(0));
+  }
+
+  public int outputReserve(int growth) {
+    int base = ((Number) settings().get("outputReserve")).intValue();
+    return Math.min(
+        providers.configuration(null).contextWindow() / 3,
+        Math.min(16384, base * (1 << Math.min(growth, 3))));
+  }
+
+  public List<Map<String, Object>> prepare(
+      String task,
+      String role,
+      String project,
+      String prompt,
+      List<Map<String, Object>> conversation,
+      List<Map<String, Object>> tools,
+      int turn,
+      int requestedOutput) {
     int window = providers.configuration(null).contextWindow(),
-        output = Math.min(window / 3, ((Number) settings().get("outputReserve")).intValue()),
+        output = Math.min(window / 3, requestedOutput),
         margin = Math.max(256, window / 20),
         budget = window - output - margin - estimate(db.json(tools));
     var selected = selectMemories(project, prompt);

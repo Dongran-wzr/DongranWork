@@ -36,7 +36,7 @@
   chatScroller.addEventListener('scroll',()=>{if(!animatingScroll)followLatest=chatScroller.scrollHeight-chatScroller.clientHeight-chatScroller.scrollTop<80;syncLatest();},{passive:true});
   latestButton.onclick=()=>scrollLatest(true,true);
   new ResizeObserver(()=>{if(followLatest)scrollLatest();else syncLatest();}).observe(chatScroller);
-  function detach() { cancelAnimationFrame(scrollFrame);animatingScroll=false;animateNext=false;followLatest=true;scrollTask=null;latestButton.hidden=true;clearInterval(elapsedTimer);elapsedTimer=null;source?.close(); source=null; selectedId=null; pendingText=''; renderVersion++; }
+  function detach() { updateTeamCount(1); cancelAnimationFrame(scrollFrame);animatingScroll=false;animateNext=false;followLatest=true;scrollTask=null;latestButton.hidden=true;clearInterval(elapsedTimer);elapsedTimer=null;source?.close(); source=null; selectedId=null; pendingText=''; renderVersion++; }
 
   async function connect() {
     const boot = await api.connect();
@@ -121,7 +121,7 @@
       if(state.attachments.length){toast('请先把附件导入知识库，或放入项目目录后在任务中说明路径。');return;}
       submitting=true;
       await settingsQueue;
-      const value=current?await request(`/api/tasks/${current.id}/messages`,'POST',{prompt,...window.DongranSkills?.payload()}):await request('/api/tasks','POST',{prompt,projectId:projectId(),mode:$('#mode').value,...window.DongranSkills?.payload()});
+      const value=current?await request(`/api/tasks/${current.id}/messages`,'POST',{prompt,mode:$('#mode').value,...window.DongranSkills?.payload()}):await request('/api/tasks','POST',{prompt,projectId:projectId(),mode:$('#mode').value,...window.DongranSkills?.payload()});
       window.DongranSkills?.reset();state.active=value.id;followLatest=true;animateNext=true;$('#prompt').value='';await reloadTasks();await renderTask();
     }catch(error){toast(error.message);}finally{submitting=false;}
   }
@@ -141,7 +141,7 @@
     if(message.role==='web_source'){try{const data=JSON.parse(message.content),rows=data.tool==='web_fetch'?[data.result]:(data.result.results||[]);return `<section class="knowledge-sources"><small>${data.tool==='web_fetch'?'已读取网页':'网页搜索结果'}</small><div>${rows.filter(row=>/^https?:\/\//i.test(row.url||'')).map(row=>`<a class="knowledge-citation" href="${esc(row.url)}" target="_blank" rel="noopener noreferrer">${esc(row.title||row.url)}</a>`).join('')||'没有找到相关网页'}</div></section>`;}catch{return '';}}
     if(message.role==='memory_capture'){try{const data=JSON.parse(message.content);return `<div class="intent-route">${data.status==='completed'?(data.candidates?`已提炼 ${data.candidates} 条记忆候选，可在设置 → 记忆中审阅`:'本轮没有待保存的稳定记忆'):esc(data.message)}</div>`;}catch{return '';}}
     if(message.role==='memory_status'){try{const data=JSON.parse(message.content);return `<div class="intent-route">${data.status==='active'?'已保存明确要求的记忆':'记忆待审阅'}：${esc(data.title)} · 可在设置 → 记忆中撤销</div>`;}catch{return '';}}
-    if(message.role==='action_status')return `<p class="runtime-error">${esc(message.content)}</p>`;
+    if(message.role==='action_status')return `<p class="intent-route">${esc(message.content)}</p>`;
     if(message.role==='knowledge'){try{const data=JSON.parse(message.content);return `<div class="intent-route">${data.results.length?'已读取相关知识库资料':'知识库没有找到相关资料'}</div>`;}catch{return '';}}
     if(message.role==='references'){try{const data=JSON.parse(message.content);return `<section class="knowledge-sources"><small>参考资料 · ${data.results.length} 处引用</small><div>${data.results.map(row=>knowledgeButton(row,row.query||'')).join('')}</div></section>`;}catch{return '';}}
 
@@ -180,6 +180,9 @@
       $('#runtime-stream').innerHTML=answerMarkup(pendingText);bindCitations($('#runtime-stream'));
       if(stick){scrollLatest(true,animateNext);animateNext=false;}else{chatScroller.scrollTop=previousTop;syncLatest();}
       renderSidebar();icons();if(selectedId!==id||(!source&&activeStatuses.has(value.status)))subscribe(id);
+      const members=new Set(['lead',...value.messages.filter(m=>m.role!=='user'&&m.agent&&m.agent!=='user').map(m=>m.agent)]);
+      for(const entry of eventLog.get(id)||[])if(entry.agent)members.add(entry.agent);
+      updateTeamCount(members.size);
     }catch(error){toast(error.message);}
   }
   function subscribe(id){
@@ -190,7 +193,7 @@
     on('message',()=>{pendingText='';renderTask();});
     on('status',()=>renderTask());
     on('approval',()=>renderTask());
-    for(const kind of ['tool','agent','hook'])on(kind,data=>{const items=eventLog.get(id)||[];items.push({kind,...data});eventLog.set(id,items.slice(-200));if(state.panel&&state.tab==='run')inspector();});
+    for(const kind of ['tool','agent','hook'])on(kind,data=>{const items=eventLog.get(id)||[];items.push({kind,...data});eventLog.set(id,items.slice(-200));const members=new Set(['lead',...items.filter(e=>e.agent).map(e=>e.agent)]);const row=state.tasks.find(t=>t.id===id);for(const m of row?.messages||[])if(m.role!=='user'&&m.agent&&m.agent!=='user')members.add(m.agent);updateTeamCount(members.size);if(state.panel&&state.tab==='run')inspector();});
     on('end',()=>{stream.close();if(source===stream)source=null;renderTask();safely(reloadTasks);safely(activity);});
     stream.onerror=()=>{if(source===stream)toast('事件连接暂时中断，正在重连。');};
   }

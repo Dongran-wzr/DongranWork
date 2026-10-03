@@ -54,6 +54,10 @@ public class TaskRepository {
         taskId);
   }
 
+  public void updateMode(String id, String mode) {
+    jdbc.update("UPDATE tasks SET mode=?,updated_at=? WHERE id=?", mode, Database.now(), id);
+  }
+
   public void updateStatus(String id, String status, String error, String updatedAt) {
     jdbc.update(
         "UPDATE tasks SET status=?,error=?,updated_at=? WHERE id=?", status, error, updatedAt, id);

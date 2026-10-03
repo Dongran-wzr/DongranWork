@@ -20,3 +20,7 @@
 #app-menu:has([data-value="account"]) .menu-option { min-height: 36px; border-radius: 8px; }
 @media (prefers-reduced-motion: reduce) { .app, .app > .sidebar { transition: none; } }
 html[data-reduce-motion="true"] .app, html[data-reduce-motion="true"] .app > .sidebar { transition: none; }
+.inspector:not([hidden]){animation:none}
+.chat-latest{background:var(--surface);color:var(--text-primary);border-color:var(--border-color);box-shadow:0 4px 16px #0002;transition:background 150ms,box-shadow 150ms}
+.chat-latest:hover{background:var(--surface-soft)}
+html[data-theme="dark"] .chat-latest{background:var(--surface-soft);color:var(--text-primary);border-color:var(--border-color);box-shadow:0 4px 16px #0005}

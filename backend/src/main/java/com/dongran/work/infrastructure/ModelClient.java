@@ -72,6 +72,26 @@ public class ModelClient {
       List<Map<String, Object>> tools,
       Consumer<String> delta)
       throws Exception {
+    return completeWithConfiguration(configuration, messages, tools, delta, 0);
+  }
+
+  public Result completeWithReserve(
+      List<Map<String, Object>> messages,
+      List<Map<String, Object>> tools,
+      Consumer<String> delta,
+      int outputReserve)
+      throws Exception {
+    return completeWithConfiguration(
+        providers.configuration(null), messages, tools, delta, outputReserve);
+  }
+
+  public Result completeWithConfiguration(
+      ModelProviderService.RuntimeConfiguration configuration,
+      List<Map<String, Object>> messages,
+      List<Map<String, Object>> tools,
+      Consumer<String> delta,
+      int outputReserve)
+      throws Exception {
     String model = configuration.modelName();
     if (model.isBlank()) throw ApiException.bad("请先添加并启用模型供应商。");
     URI base = PreferenceService.validateUrl(configuration.baseUrl());
@@ -85,7 +105,9 @@ public class ModelClient {
     int reserve =
         Math.min(
             configuration.contextWindow() / 3,
-            Database.number(preferences.all(), "contextOutputReserve", 4096, 512, 16384));
+            outputReserve > 0
+                ? Math.min(16384, outputReserve)
+                : Database.number(preferences.all(), "contextOutputReserve", 4096, 512, 16384));
     payload.put("max_tokens", reserve);
     payload.put("temperature", configuration.temperature());
     if (!tools.isEmpty()) {
@@ -125,6 +147,7 @@ public class ModelClient {
               TimeUnit.SECONDS);
       try {
         StringBuilder text = new StringBuilder();
+        int emitted = 0;
         var calls = new TreeMap<Integer, Map<String, Object>>();
         if (!response
             .headers()
@@ -137,6 +160,7 @@ public class ModelClient {
           checkFinish(choice.path("finish_reason").asText(""));
           JsonNode message = choice.path("message");
           String content = message.path("content").asText("");
+          rejectProtocol(content);
           delta.accept(content);
           List<Map<String, Object>> result = new ArrayList<>();
           for (JsonNode tool : message.path("tool_calls")) result.add(db.object(tool.toString()));
@@ -173,7 +197,12 @@ public class ModelClient {
             if (part.path("content").isTextual()) {
               String fragment = part.path("content").asText();
               text.append(fragment);
-              delta.accept(fragment);
+              rejectProtocol(text.toString());
+              int safeEnd = Math.max(emitted, text.length() - 128);
+              if (safeEnd > emitted) {
+                delta.accept(text.substring(emitted, safeEnd));
+                emitted = safeEnd;
+              }
             }
             for (JsonNode call : part.path("tool_calls")) {
               int index = call.path("index").asInt();
@@ -211,6 +240,8 @@ public class ModelClient {
                   "function",
                   Map.of("name", call.get("name"), "arguments", call.get("arguments"))));
         }
+        rejectProtocol(text.toString());
+        if (text.length() > emitted) delta.accept(text.substring(emitted));
         return result(text.toString(), completeCalls);
       } finally {
         timer.cancel(false);
@@ -221,7 +252,17 @@ public class ModelClient {
   static void checkFinish(String reason) {
     if (Set.of("length", "content_filter", "incomplete", "error").contains(reason))
       throw new com.dongran.work.exception.ModelIncompleteException(
-          "模型输出未完成（" + reason + "），未执行工具调用。");
+          "模型输出未完成（" + reason + "），未执行工具调用。", reason);
+  }
+
+  public static boolean hasProtocol(String text) {
+    return java.util.regex.Pattern.compile("(?i)[<＜]\\s*[|｜]\\s*DSML\\s*[|｜]").matcher(text).find();
+  }
+
+  private static void rejectProtocol(String text) {
+    if (hasProtocol(text))
+      throw new com.dongran.work.exception.ModelIncompleteException(
+          "模型返回了正文形式的工具协议，未执行。", "protocol");
   }
 
   private Result result(String text, List<Map<String, Object>> calls) {
