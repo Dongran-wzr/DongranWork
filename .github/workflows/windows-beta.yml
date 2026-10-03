@@ -50,7 +50,7 @@ jobs:
         with:
           prerelease: true
           draft: true
-          body_path: docs/releases/v0.1.0-beta.4.md
+          body_path: docs/releases/v0.1.0-beta.5.md
           files: |
             desktop/src-tauri/target/release/bundle/nsis/*.exe
             desktop/src-tauri/target/release/bundle/nsis/SHA256SUMS.txt
