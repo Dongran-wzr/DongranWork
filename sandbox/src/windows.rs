@@ -569,6 +569,12 @@ fn environment(request: &Request) -> Result<Vec<u16>, String> {
             local_path(&request.workspace),
         ),
         ("PATH".to_owned(), path),
+        // Restrict discovery to Windows PowerShell's own modules. Runner profiles
+        // and missing per-user registry entries must not change cmdlet availability.
+        (
+            "PSModulePath".to_owned(),
+            local_path(&system.join("System32/WindowsPowerShell/v1.0/Modules")),
+        ),
         (
             "SystemRoot".to_owned(),
             system.to_string_lossy().into_owned(),
