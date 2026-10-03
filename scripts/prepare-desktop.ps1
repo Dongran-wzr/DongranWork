@@ -31,4 +31,4 @@ if (Test-Path -LiteralPath $runtimeRoot) {
 # than jdeps can infer. Reduce modules only after packaged integration validation.
 & $jlink --add-modules ALL-MODULE-PATH --strip-debug --no-header-files --no-man-pages --output $runtimeRoot
 if ($LASTEXITCODE -ne 0) { throw 'Bundled Java runtime creation failed.' }
-Write-Output 'Windows resources include Java runtime and sandbox helper.' 
+Write-Output 'Windows resources include Java runtime and sandbox helper.'
