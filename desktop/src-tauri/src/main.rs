@@ -61,18 +61,23 @@ fn start_backend(
     let data = app.path().app_data_dir()?;
     fs::create_dir_all(&data)?;
     let port: u16 = env::var("DONGRAN_PORT")
-        .unwrap_or_else(|_| "3210".into())
+        .unwrap_or_else(|_| "0".into())
         .parse()?;
-    if port == 0 {
-        return Err("DONGRAN_PORT must be between 1 and 65535".into());
-    }
     // Do not attach the desktop UI to an unrelated process occupying the port.
     let listener = TcpListener::bind(("127.0.0.1", port))?;
+    let port = listener.local_addr()?.port();
     drop(listener);
     let url = format!("http://127.0.0.1:{port}");
-    let mut command = Command::new("java");
+    let java = if cfg!(debug_assertions) {
+        PathBuf::from("java")
+    } else {
+        app.path().resource_dir()?.join("resources/runtime/bin/java.exe")
+    };
+    let mut command = Command::new(java);
     command
-        .arg("-XX:MaxRAMPercentage=40")
+        .arg("-Xms32m")
+        .arg("-Xmx512m")
+        .arg("-XX:+UseSerialGC")
         .arg("-jar")
         .arg(jar)
         .arg(format!("--server.port={port}"))
