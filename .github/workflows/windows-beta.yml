@@ -24,6 +24,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Frontend dependencies
         run: npm ci --prefix prototype
+      - name: Build sandbox for integration tests
+        run: ./scripts/build-sandbox.ps1
       - name: Test and package backend
         run: mvn -B -pl backend test package
       - name: Bundle Java and sandbox
