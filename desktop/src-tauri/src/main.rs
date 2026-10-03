@@ -78,14 +78,15 @@ fn start_backend(
         .arg("-Xms32m")
         .arg("-Xmx512m")
         .arg("-XX:+UseSerialGC")
+        .current_dir(jar.parent().ok_or("missing backend directory")?)
         .arg("-jar")
-        .arg(jar)
+        .arg(jar.file_name().ok_or("missing backend filename")?)
         .arg(format!("--server.port={port}"))
         .arg(format!("--dongran.data-dir={}", data.display()))
         .arg(format!("--dongran.sandbox-helper={}", helper.display()))
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stdout(Stdio::from(fs::File::create(data.join("backend.out.log"))?))
+        .stderr(Stdio::from(fs::File::create(data.join("backend.err.log"))?));
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;

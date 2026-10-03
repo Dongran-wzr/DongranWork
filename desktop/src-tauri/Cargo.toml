@@ -1,6 +1,6 @@
 [package]
 name = "dongran-work-desktop"
-version = "0.1.0-beta.3"
+version = "0.1.0-beta.4"
 description = "Dongran Work desktop shell"
 authors = ["Dongran"]
 edition = "2021"
