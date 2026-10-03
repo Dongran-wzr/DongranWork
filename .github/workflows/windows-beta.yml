@@ -28,11 +28,9 @@ jobs:
         run: mvn -B -pl backend test package
       - name: Bundle Java and sandbox
         run: ./scripts/prepare-desktop.ps1 -SkipBackendBuild
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --version 2.8.4 --locked
       - name: Build Windows installer
         working-directory: desktop
-        run: cargo tauri build --bundles nsis
+        run: npx --yes --package @tauri-apps/cli@2.8.4 tauri build --bundles nsis
       - name: Checksums
         shell: pwsh
         run: |
@@ -50,7 +48,7 @@ jobs:
         with:
           prerelease: true
           draft: true
-          body_path: docs/releases/v0.1.0-beta.2.md
+          body_path: docs/releases/v0.1.0-beta.3.md
           files: |
             desktop/src-tauri/target/release/bundle/nsis/*.exe
             desktop/src-tauri/target/release/bundle/nsis/SHA256SUMS.txt

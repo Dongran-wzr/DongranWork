@@ -1,10 +1,10 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Dongran Work",
-  "version": "0.1.0-beta.2",
+  "version": "0.1.0-beta.3",
   "identifier": "com.dongran.work",
   "build": {
-    "frontendDist": "../../backend/target/classes/static"
+    "frontendDist": "../ui"
   },
   "app": {
     "withGlobalTauri": false,
