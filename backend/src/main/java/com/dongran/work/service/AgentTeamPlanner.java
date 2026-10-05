@@ -8,7 +8,9 @@ import org.springframework.stereotype.Component;
 public class AgentTeamPlanner {
   public record Specialist(String id, String label, String purpose, String reason) {}
 
-  public record Plan(List<Specialist> specialists, String summary) {
+  public record Node(String id, List<String> dependsOn) {}
+
+  public record Plan(List<Specialist> specialists, List<Node> dag, String summary) {
     public List<String> ids() {
       return specialists.stream().map(Specialist::id).toList();
     }
@@ -55,7 +57,21 @@ public class AgentTeamPlanner {
         selected.stream()
             .map(id -> new Specialist(id, LABELS.get(id), purpose(id), reason(id, text)))
             .toList();
-    return new Plan(specialists, "根据任务意图选择 " + specialists.size() + " 个专业角色；主 Agent 负责拆解、汇总和最终验收。");
+    var ids =
+        specialists.stream()
+            .map(Specialist::id)
+            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+    var dag = new ArrayList<Node>();
+    for (String id : ids) {
+      var deps = new ArrayList<String>();
+      if ((id.equals("developer") || id.equals("architect")) && ids.contains("product"))
+        deps.add("product");
+      if (id.equals("developer") && ids.contains("architect")) deps.add("architect");
+      if (Set.of("reviewer", "tester", "security", "docs", "devops").contains(id)
+          && ids.contains("developer")) deps.add("developer");
+      dag.add(new Node(id, deps));
+    }
+    return new Plan(specialists, dag, "根据任务意图生成 DAG；无依赖 Agent 并发执行，主 Agent 负责汇总和最终验收。");
   }
 
   public boolean supported(String role) {

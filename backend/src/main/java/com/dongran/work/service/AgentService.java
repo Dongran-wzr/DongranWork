@@ -32,8 +32,13 @@ public class AgentService {
   private final ConnectionService connections;
   private final ApprovalService approvals;
   private final TaskEvents events;
+  private final SkillEvolutionService evolution;
   private final AgentTeamPlanner planner;
   private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+  // DAG fan-out is deliberately bounded on platform threads. Model calls are I/O-heavy,
+  // but this pool is the hard concurrency ceiling for specialist agents.
+  private final ExecutorService dagExecutor =
+      Executors.newFixedThreadPool(4, Thread.ofPlatform().daemon().name("agent-dag-", 0).factory());
   private final Object executionMonitor = new Object();
   private int executing;
 
@@ -72,7 +77,8 @@ public class AgentService {
       MemoryCaptureService capture,
       ContextDraftService drafts,
       SkillService skills,
-      SkillContextService skillContext) {
+      SkillContextService skillContext,
+      SkillEvolutionService evolution) {
     this.context = context;
     this.capture = capture;
     this.drafts = drafts;
@@ -94,6 +100,7 @@ public class AgentService {
     this.approvals = approvals;
     this.events = events;
     this.planner = planner;
+    this.evolution = evolution;
   }
 
   public List<Map<String, Object>> list(String projectId) {
@@ -238,22 +245,29 @@ public class AgentService {
       task.put(
           "_explicitMemorySaved", capture.explicit(id, (String) task.get("projectId"), latest));
       events.message(id, "route", "lead", db.json(route));
+      boolean planning = "仅规划".equals(task.get("mode"));
       var team =
           route.goal().equals("execute")
               ? planner.plan(latest)
-              : new AgentTeamPlanner.Plan(List.of(), "主 Agent 完成资料检索与回答");
+              : new AgentTeamPlanner.Plan(List.of(), List.of(), "主 Agent 完成资料检索与回答");
       events.emit(
-          id, "team_plan", Map.of("summary", team.summary(), "specialists", team.specialists()));
+          id,
+          "team_plan",
+          Map.of("summary", team.summary(), "specialists", team.specialists(), "dag", team.dag()));
+      if (!planning && !team.dag().isEmpty() && preferences.bool("autoDelegate", true))
+        runDag(task, team);
       events.status(id, "running", null);
       if (Boolean.FALSE.equals(model.status().get("configured")))
         throw ApiException.bad("请先配置模型服务地址、模型名称和密钥。");
-      boolean planning = "仅规划".equals(task.get("mode"));
       if (!planning) prepareEvidence(task, route);
       agent(
           task,
           "lead",
           "完成用户的任务。普通问答直接回答；需要项目操作时才调用工具或调度 Agent，不要为问答强行制定执行计划。汇总实际执行结果并复核关键结论。"
-              + db.json(team.specialists()),
+              + db.json(team.specialists())
+              + (task.get("_dagResults") instanceof Map<?, ?> dag
+                  ? "\n并行 DAG 子 Agent 简报：\n" + db.json(dag)
+                  : ""),
           planning,
           0);
       if (Boolean.TRUE.equals(task.get("_executionStarted"))) hooks(task, "after-task");
@@ -262,6 +276,7 @@ public class AgentService {
       if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
       context.finish(id, "completed", null);
       events.status(id, "completed", null);
+      evolution.onTaskFinished(id, "completed");
     } catch (InterruptedException | CancellationException e) {
       Thread.interrupted();
       context.finish(id, "cancelled", "任务已停止。");
@@ -278,6 +293,7 @@ public class AgentService {
               : e instanceof TimeoutException
                   ? "确认请求已超时。"
                   : "任务执行失败：" + e.getClass().getSimpleName());
+      if (!interrupted) evolution.onTaskFinished(id, "failed");
       if (interrupted) Thread.currentThread().interrupt();
     } finally {
       if (acquired)
@@ -285,6 +301,117 @@ public class AgentService {
           executing--;
           executionMonitor.notifyAll();
         }
+    }
+  }
+
+  /**
+   * Event-driven DAG scheduler: each completed node can unlock or add the next node immediately.
+   */
+  private void runDag(Map<String, Object> task, AgentTeamPlanner.Plan plan) throws Exception {
+    var nodes = new LinkedHashMap<String, AgentTeamPlanner.Node>();
+    plan.dag().forEach(node -> nodes.put(node.id(), node));
+    var results = new LinkedHashMap<String, Map<String, Object>>();
+    var remaining = new LinkedHashSet<>(nodes.keySet());
+    var active = new HashMap<Future<Map.Entry<String, Map<String, Object>>>, String>();
+    var completion =
+        new ExecutorCompletionService<Map.Entry<String, Map<String, Object>>>(dagExecutor);
+    while (!remaining.isEmpty()) {
+      var ready =
+          remaining.stream()
+              .filter(id -> nodes.get(id).dependsOn().stream().allMatch(results::containsKey))
+              .filter(id -> !active.containsValue(id))
+              .toList();
+      for (String role : ready) {
+        String dependencies =
+            nodes.get(role).dependsOn().stream()
+                .map(dep -> dep + "：" + db.json(results.get(dep)))
+                .collect(java.util.stream.Collectors.joining("\n"));
+        String instruction =
+            "并行 DAG 子任务。你的角色目标："
+                + planner.label(role)
+                + "。"
+                + "请只完成分析、读取或验证，并输出给主 Agent 的结构化简报；不要重复主 Agent 的最终回答。"
+                + (dependencies.isBlank() ? "" : "\n前置节点简报：\n" + dependencies)
+                + "\n必须只返回 JSON：{status:completed|failed,summary:string,changedFiles:string[],artifacts:string[],needsReview:boolean,needsTest:boolean,needsSecurityReview:boolean,reason:string}。";
+        var future =
+            completion.submit(
+                () ->
+                    Map.entry(
+                        role, parseDagResult(role, agent(task, role, instruction, false, 1))));
+        active.put(future, role);
+      }
+      if (active.isEmpty()) throw ApiException.conflict("Agent DAG 存在循环依赖，已停止调度。");
+      var completed = completion.take().get();
+      active.entrySet().removeIf(entry -> entry.getValue().equals(completed.getKey()));
+      results.put(completed.getKey(), completed.getValue());
+      remaining.remove(completed.getKey());
+      events.emit(
+          String.valueOf(task.get("id")),
+          "dag_node",
+          Map.of("agent", completed.getKey(), "result", completed.getValue()));
+      var result = completed.getValue();
+      if ("developer".equals(completed.getKey())
+          && Boolean.TRUE.equals(result.get("needsReview"))) {
+        nodes.putIfAbsent("reviewer", new AgentTeamPlanner.Node("reviewer", List.of("developer")));
+        remaining.add("reviewer");
+      }
+      if ("developer".equals(completed.getKey()) && Boolean.TRUE.equals(result.get("needsTest"))) {
+        nodes.putIfAbsent("tester", new AgentTeamPlanner.Node("tester", List.of("developer")));
+        remaining.add("tester");
+      }
+      if ("developer".equals(completed.getKey())
+          && Boolean.TRUE.equals(result.get("needsSecurityReview"))) {
+        nodes.putIfAbsent("security", new AgentTeamPlanner.Node("security", List.of("developer")));
+        remaining.add("security");
+      }
+      if (Boolean.TRUE.equals(result.get("needsReview"))
+          || Boolean.TRUE.equals(result.get("needsTest"))
+          || Boolean.TRUE.equals(result.get("needsSecurityReview"))) {
+        events.emit(
+            String.valueOf(task.get("id")),
+            "dag_expand",
+            Map.of("reason", "子 Agent 结构化结果触发后续校验", "result", result));
+      }
+      events.emit(
+          String.valueOf(task.get("id")),
+          "dag_progress",
+          Map.of("running", active.values(), "completed", results.keySet(), "pending", remaining));
+    }
+    task.put("_dagResults", results);
+  }
+
+  private Map<String, Object> parseDagResult(String role, String text) {
+    try {
+      String json = text.strip().replaceFirst("^```(?:json)?\\s*", "").replaceFirst("\\s*```$", "");
+      var value = db.object(json);
+      value.putIfAbsent("status", "completed");
+      value.putIfAbsent("summary", "");
+      value.putIfAbsent("changedFiles", List.of());
+      value.putIfAbsent("artifacts", List.of());
+      value.putIfAbsent("needsReview", false);
+      value.putIfAbsent("needsTest", false);
+      value.putIfAbsent("needsSecurityReview", false);
+      value.put("agent", role);
+      return value;
+    } catch (Exception ignored) {
+      return new LinkedHashMap<>(
+          Map.of(
+              "agent",
+              role,
+              "status",
+              "completed",
+              "summary",
+              text.substring(0, Math.min(6000, text.length())),
+              "changedFiles",
+              List.of(),
+              "artifacts",
+              List.of(),
+              "needsReview",
+              false,
+              "needsTest",
+              false,
+              "needsSecurityReview",
+              false));
     }
   }
 
@@ -1135,6 +1262,7 @@ public class AgentService {
     closing = true;
     running.values().forEach(RunningTask::cancel);
     executor.shutdownNow();
+    dagExecutor.shutdownNow();
     try {
       executor.awaitTermination(5, TimeUnit.SECONDS);
     } catch (InterruptedException e) {

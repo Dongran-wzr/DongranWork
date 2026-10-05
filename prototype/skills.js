@@ -44,5 +44,16 @@
  window.addEventListener('projectchange',reset);
  document.addEventListener('click',e=>{if(e.target.closest('[data-open-skills]'))DongranSettings.open('skills');if(e.target.closest('[data-action="new"]'))reset();});
  (window.DongranSettingsModules||=[]).push({categories:[{id:'skills',label:'技能',icon:'book-open',group:'Agent 与项目',subtitle:'管理可复用的工作流程、规范与模板。',searchKeywords:'skill 技能 导入 SKILL.md'}],definitions:[],render(category){if(category!=='skills')return '';setTimeout(refresh,0);return '<section id="skill-manager" class="settings-section">正在读取技能…</section>';}});
+ async function evolution(){
+   const host=document.querySelector('#skill-manager'); if(!host)return;
+   try{
+     const rows=await DongranRuntime.request('/api/skill-evolution/candidates'+query());
+     if(!rows.length)return;
+     const section=document.createElement('section'); section.className='skill-evolution-panel';
+     section.innerHTML='<div class="skill-toolbar"><strong>待审核的技能改进候选</strong><span class="skill-hint">成功与失败任务都会生成候选，发布前需评测和人工审核。</span></div>'+rows.map(r=>`<article class="skill-candidate" data-candidate="${esc(r.id)}"><div><strong>${esc(r.name)}</strong><span> ${esc(r.status)}</span></div><p>${esc(r.description||'')}</p><details><summary>查看 Diff</summary><pre>${esc(r.content||'')}</pre></details><div class="skill-card-actions"><button class="settings-command" data-eval>评测</button><button class="primary" data-approve>批准发布</button><button class="settings-command" data-reject>拒绝</button></div></article>`).join('');
+     host.prepend(section); section.querySelectorAll('[data-candidate]').forEach(card=>{const id=card.dataset.candidate;card.querySelector('[data-eval]').onclick=async()=>{try{await DongranRuntime.request('/api/skill-evolution/candidates/'+id+'/evaluate','POST');toast('评测完成，请查看候选状态');await refresh();}catch(e){toast(e.message);}};card.querySelector('[data-approve]').onclick=async()=>{try{await DongranRuntime.request('/api/skill-evolution/candidates/'+id+'/approve','POST');toast('候选已发布为技能新版本');await refresh();}catch(e){toast(e.message);}};card.querySelector('[data-reject]').onclick=async()=>{try{await DongranRuntime.request('/api/skill-evolution/candidates/'+id+'/reject','POST');await refresh();}catch(e){toast(e.message);}};});
+   }catch(e){/* evolution is optional and must not break skill management */}
+ }
+ const originalRefresh=refresh; refresh=async()=>{await originalRefresh();await evolution();};
  window.DongranSkills={refresh,reset,payload:()=>({skillIds:selected.map(r=>r.id),autoSkills:auto})};icons();
 })();

@@ -30,6 +30,7 @@
     {key:'contextWindow', category:'models', section:'生成参数', title:'上下文上限', description:'每次任务可使用的最大上下文 token 数。', icon:'scan-text', type:'number', default:32768, min:4096, max:131072, step:1024, unit:'tokens'},
 
     {key:'autoDelegate', category:'agents', section:'任务协作', title:'自动分配任务', description:'主 Agent 根据任务需要安排专业 Agent。', icon:'workflow', type:'toggle', default:true},
+    {key:'skillEvolutionEnabled', category:'agents', section:'技能演进', title:'自动生成技能改进候选', description:'任务成功或失败后提炼候选；候选只进入审核区，不会自动启用或修改权限。', icon:'sparkles', type:'toggle', default:true},
     {key:'parallelAgents', category:'agents', section:'任务协作', title:'同时运行的任务数量', description:'限制并行任务数；任务内部由主 Agent 按需调度专业 Agent。', icon:'network', type:'range', default:3, min:1, max:4, step:1},
     {key:'confirmPlan', category:'agents', section:'任务协作', title:'执行前确认计划', description:'在“修改前询问”模式下，首次写文件或运行命令前确认具体操作。“允许项目内修改”不重复确认。', icon:'list-checks', type:'toggle', default:true},
     {key:'enableProduct', category:'agents', section:'专业 Agent', title:'产品 Agent', description:'梳理需求、业务流程与验收标准。', icon:'notebook-pen', type:'toggle', default:true},
