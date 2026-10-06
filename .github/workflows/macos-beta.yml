@@ -37,7 +37,20 @@ jobs:
       - name: Build helper
         run: sh scripts/build-sandbox.sh
       - name: Test and package backend
-        run: mvn -B -pl backend test package
+        run: |
+          set -eu
+          # macOS /var aliases /private/var. Use the physical CI temp path so
+          # strict workspace link checks still reject links inside projects.
+          TEST_TMP="$(cd "$RUNNER_TEMP" && pwd -P)/dongran-tests"
+          mkdir -p "$TEST_TMP"
+          mvn -B "-Djava.io.tmpdir=$TEST_TMP" -pl backend test package
+      - name: Upload backend test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}-test-reports
+          path: backend/target/surefire-reports/
+          if-no-files-found: ignore
       - name: Bundle Java and helper
         run: sh scripts/prepare-desktop.sh --skip-backend-build
       - name: Build macOS bundles
