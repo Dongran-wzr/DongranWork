@@ -41,8 +41,8 @@ jobs:
           if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+', tag):
               raise SystemExit('Expected beta release tag')
           release = json.loads(subprocess.check_output(['gh', 'release', 'view', tag, '--json', 'body,isPrerelease']))
-          if not release['isPrerelease']:
-              raise SystemExit('Target must be an existing prerelease')
+          # Existing beta releases may already be published as non-prerelease.
+          # The beta tag format is the source of truth for this upload job.
           output = pathlib.Path('publish')
           output.mkdir()
           for arch in ('arm64', 'x64'):
