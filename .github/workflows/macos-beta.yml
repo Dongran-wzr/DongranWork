@@ -43,7 +43,8 @@ jobs:
           # strict workspace link checks still reject links inside projects.
           TEST_TMP="$(cd "$RUNNER_TEMP" && pwd -P)/dongran-tests"
           mkdir -p "$TEST_TMP"
-          mvn -B "-Djava.io.tmpdir=$TEST_TMP" -pl backend test package
+          export TMPDIR="$TEST_TMP"
+          mvn -B "-Djava.io.tmpdir=$TEST_TMP" "-DargLine=-Djava.io.tmpdir=$TEST_TMP" -pl backend test package
       - name: Upload backend test reports
         if: always()
         uses: actions/upload-artifact@v4
