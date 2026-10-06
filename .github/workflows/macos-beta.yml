@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['.github/workflows/macos-beta.yml', 'desktop/src-tauri/tauri.macos.conf.json', 'scripts/prepare-desktop.sh']
+    paths: ['.github/workflows/macos-beta.yml', 'desktop/src-tauri/tauri.macos.conf.json', 'scripts/prepare-desktop.sh', 'scripts/package-macos-beta.py']
     tags: ['v*-beta.*']
 permissions:
   contents: read
@@ -56,7 +56,9 @@ jobs:
         run: sh scripts/prepare-desktop.sh --skip-backend-build
       - name: Build macOS bundles
         working-directory: desktop
-        run: npx --yes --package @tauri-apps/cli@2.8.4 tauri build --config src-tauri/tauri.macos.conf.json --bundles app,dmg
+        run: npx --yes --package @tauri-apps/cli@2.8.4 tauri build --config src-tauri/tauri.macos.conf.json --bundles app
+      - name: Seal final application and verify DMG signatures
+        run: python3 scripts/package-macos-beta.py
       - name: Smoke test installed application
         run: |
           set -eu
