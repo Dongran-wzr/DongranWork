@@ -276,6 +276,10 @@ public class SkillEvolutionService {
     return repo.candidates(project);
   }
 
+  public Object runs(String project) {
+    return db.jdbc.queryForList("SELECT r.id,r.task_id,r.trigger,r.status,r.diagnosis,r.created_at,t.title FROM skill_evolution_runs r LEFT JOIN tasks t ON t.id=r.task_id WHERE (? IS NULL OR t.project_id=? OR t.project_id IS NULL) ORDER BY r.created_at DESC LIMIT 50", project, project);
+  }
+
   public Map<String, Object> detail(String id) {
     var c = new LinkedHashMap<>(repo.candidate(id));
     c.put("cases", repo.cases(id));

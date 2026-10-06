@@ -19,6 +19,11 @@ public class SkillEvolutionController {
     return service.list(projectId);
   }
 
+  @GetMapping("/skill-evolution/runs")
+  public Object runs(@RequestParam(required = false) String projectId) {
+    return service.runs(projectId);
+  }
+
   @GetMapping("/skill-evolution/candidates/{id}")
   public Object detail(@PathVariable String id) {
     return service.detail(id);

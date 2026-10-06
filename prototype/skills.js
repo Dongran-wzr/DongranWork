@@ -47,12 +47,38 @@
  async function evolution(){
    const host=document.querySelector('#skill-manager'); if(!host)return;
    try{
-     const rows=await DongranRuntime.request('/api/skill-evolution/candidates'+query());
-     if(!rows.length)return;
+     const listed=await DongranRuntime.request('/api/skill-evolution/candidates'+query());
+     const rows=await Promise.all(listed.map(r=>DongranRuntime.request('/api/skill-evolution/candidates/'+encodeURIComponent(r.id)).then(d=>({...r,...d}))));
+     // The candidate history spans projects in global view; show its published skills too,
+     // without adding out-of-scope skills to the chat picker catalog.
+     const published=await Promise.all([...new Set(rows.filter(r=>r.status==='approved'&&r.skill_id&&!catalog.some(s=>s.id===r.skill_id)).map(r=>r.skill_id))].map(id=>api('/'+encodeURIComponent(id)).catch(()=>null)));
+     for(const skill of published.filter(Boolean)){
+       const card=document.createElement('article');card.className='skill-card';
+       card.innerHTML=`<div class="skill-card-heading"><strong>${esc(skill.name)}</strong><span>v${esc(skill.version)}</span></div><p>${esc(skill.description)}</p><small>其他项目 · 已发布的演进技能 · ${skill.enabled?'已启用':'未启用'}</small><div class="skill-card-actions"><button class="settings-command" data-published-edit>查看 / 编辑</button></div>`;
+       card.querySelector('button').onclick=()=>editor(skill.id);host.querySelector('.skill-grid')?.append(card);
+     }
+     const runs=await DongranRuntime.request('/api/skill-evolution/runs'+query());
      const section=document.createElement('section'); section.className='skill-evolution-panel';
      section.innerHTML='<div class="skill-toolbar"><strong>待审核的技能改进候选</strong><span class="skill-hint">成功与失败任务都会生成候选，发布前需评测和人工审核。</span></div>'+rows.map(r=>`<article class="skill-candidate" data-candidate="${esc(r.id)}"><div><strong>${esc(r.name)}</strong><span> ${esc(r.status)}</span></div><p>${esc(r.description||'')}</p><details><summary>查看 Diff</summary><pre>${esc(r.content||'')}</pre></details><div class="skill-card-actions"><button class="settings-command" data-eval>评测</button><button class="primary" data-approve>批准发布</button><button class="settings-command" data-reject>拒绝</button></div></article>`).join('');
-     host.prepend(section); section.querySelectorAll('[data-candidate]').forEach(card=>{const id=card.dataset.candidate;card.querySelector('[data-eval]').onclick=async()=>{try{await DongranRuntime.request('/api/skill-evolution/candidates/'+id+'/evaluate','POST');toast('评测完成，请查看候选状态');await refresh();}catch(e){toast(e.message);}};card.querySelector('[data-approve]').onclick=async()=>{try{await DongranRuntime.request('/api/skill-evolution/candidates/'+id+'/approve','POST');toast('候选已发布为技能新版本');await refresh();}catch(e){toast(e.message);}};card.querySelector('[data-reject]').onclick=async()=>{try{await DongranRuntime.request('/api/skill-evolution/candidates/'+id+'/reject','POST');await refresh();}catch(e){toast(e.message);}};});
-   }catch(e){/* evolution is optional and must not break skill management */}
+     if(!rows.length)section.insertAdjacentHTML('beforeend','<p class="skill-hint">暂无候选。完成任务后点击刷新，下面可查看提炼进度、跳过原因或失败记录。</p>');
+     section.querySelectorAll('[data-candidate]').forEach(card=>{
+       const row=rows.find(r=>r.id===card.dataset.candidate),latest=row.results?.[0];
+       const report=document.createElement('div');report.className='skill-evaluation-report';
+       report.innerHTML='<strong>评测结果</strong>'+ (row.results?.length?row.results.map(r=>{let p;try{p=JSON.parse(r.report);}catch{p={reason:r.report};}return `<details open><summary>${r.status==='passed'?'通过':'未通过'} · ${esc(r.created_at)}</summary><p>${esc(p.reason||'无评审理由')}</p><small>静态检查 + 模型模拟评审 · 未执行真实测试</small></details>`;}).join(''):'<p>尚未评测，批准前需通过模拟评审。</p>');
+       card.querySelector('.skill-card-actions').before(report);
+       const pending=row.status==='pending_review';
+       card.querySelectorAll('button').forEach(b=>b.disabled=!pending);
+       card.querySelector('[data-approve]').disabled=!pending||latest?.status!=='passed';
+       if(row.status==='approved'){
+         const note=document.createElement('p');note.className='skill-hint';
+         note.textContent='已发布到'+(row.project_id?'原任务所属项目':'全局')+'技能列表。新技能默认关闭，可在列表手动启用。';card.append(note);
+         const entry=document.createElement('button');entry.className='settings-command';entry.textContent='查看已发布技能';
+         entry.onclick=()=>editor(row.skill_id);card.append(entry);
+       }
+     });
+     section.insertAdjacentHTML('beforeend','<details open><summary>最近提炼记录</summary>'+ (runs.map(r=>`<article class="skill-candidate"><strong>${esc(r.title||r.task_id)}</strong><p>${esc(({queued:'排队中',running:'提炼中',completed:'已生成候选',skipped:'无可复用经验',failed:'生成失败',interrupted:'已中断'})[r.status]||r.status)} · ${esc(r.trigger==='success'?'成功任务':'失败任务')}</p><p>${esc(r.diagnosis||'')}</p></article>`).join('')||'<p class="skill-hint">尚无提炼记录；开启自动生成后，新结束的任务才会触发。</p>')+'</details>');
+     host.prepend(section); section.querySelectorAll('[data-candidate]').forEach(card=>{const id=card.dataset.candidate;for(const [selector,action] of [['[data-eval]','evaluate'],['[data-approve]','approve'],['[data-reject]','reject']])card.querySelector(selector).onclick=async()=>{card.querySelectorAll('button').forEach(b=>b.disabled=true);try{await DongranRuntime.request('/api/skill-evolution/candidates/'+id+'/'+action,'POST');await refresh();toast(action==='evaluate'?'评测完成，结果已显示':action==='approve'?'已发布，请在技能列表查看':'已拒绝');}catch(e){await refresh();toast(e.message);}};});
+   }catch(e){const notice=document.createElement('p');notice.className='runtime-error';notice.textContent='技能演进读取失败：'+e.message;host.prepend(notice);}
  }
  const originalRefresh=refresh; refresh=async()=>{await originalRefresh();await evolution();};
  window.DongranSkills={refresh,reset,payload:()=>({skillIds:selected.map(r=>r.id),autoSkills:auto})};icons();

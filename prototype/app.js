@@ -134,6 +134,10 @@ function openChoiceMenu(trigger) {
 }
 function renderSidebar(){
   $('#task-count').textContent=state.tasks.length;
+  if(window.DongranRuntime?.enabled){
+    const groups=[...(state.workspaceProjects||[]).map(p=>({...p,tasks:state.tasks.filter(t=>t.projectId===p.id)})),{id:null,name:'未关联项目',tasks:state.tasks.filter(t=>!t.projectId)}];
+    $('#task-list').innerHTML=groups.map(p=>`<details class="workspace-project-group" ${p.id===projectContext?.id||p.tasks.some(t=>t.id===state.active)||p.id===null?'open':''}><summary>${icon('folder')}<span>${escapeHtml(p.name)}</span><small>${p.tasks.length}</small></summary>${p.path?`<button class="workspace-project-open" data-workspace-project="${escapeHtml(p.path)}" title="${escapeHtml(p.path)}">进入项目 ${icon('arrow-up-right')}</button>`:''}${p.tasks.map(t=>`<button class="task-item ${t.id===state.active?'active':''}" data-workspace-task="${escapeHtml(t.id)}">${icon(t.done?'circle-check':'message-square')}<span>${escapeHtml(t.title)}</span>${t.running?'<span class="dot loading-dot"></span>':''}</button>`).join('')||'<div class="empty-tasks">暂无任务</div>'}</details>`).join('');return;
+  }
   $('#task-list').innerHTML=state.tasks.length ? '<div class="task-group">今天</div>'+state.tasks.map(t=>`<button class="task-item ${t.id===state.active?'active':''}" data-task="${t.id}">${icon(t.done?'circle-check':'message-square')}<span>${escapeHtml(t.title)}</span>${t.id===state.active?'<span class="dot"></span>':''}</button>`).join(''):'<div class="empty-tasks">还没有任务</div>';
 }
 function welcome(){

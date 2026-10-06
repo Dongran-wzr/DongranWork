@@ -8,6 +8,22 @@
   --desktop-bar-height: 48px;
   --ui-font-size: 14px;
 }
+.native-titlebar{--desktop-bar-height:36px}
+.native-titlebar .desktop-bar{padding-right:0;user-select:none}
+.window-controls{display:flex;align-self:stretch;margin-left:12px;flex-shrink:0}
+.window-controls button{width:46px;border:0;border-radius:0;background:transparent;color:var(--text-primary);font:18px/1 sans-serif}
+.window-controls button:hover{background:var(--surface-soft)}
+.window-controls button[data-window="close"]:hover{background:#c42b1c;color:#fff}
+.window-controls button:focus-visible{outline:2px solid var(--text-primary);outline-offset:-3px}
+.workspace-project-group{margin:4px 0 12px}
+.workspace-project-group summary{display:flex;align-items:center;gap:8px;padding:9px 8px;cursor:pointer;list-style:none;color:var(--text-primary);font-size:12px;border-radius:7px}
+.workspace-project-group summary:hover{background:var(--surface-soft)}
+.workspace-project-group summary svg{width:15px;height:15px;color:var(--text-secondary)}
+.workspace-project-group summary span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.workspace-project-group summary small{color:var(--text-secondary)}
+.workspace-project-group .task-item{padding-left:20px}
+.workspace-project-open{display:flex;align-items:center;gap:6px;padding:5px 20px;font-size:10px;color:var(--text-secondary)}
+.workspace-project-open svg{width:12px;height:12px}
 html, body { min-width: 1024px; min-height: 680px; }
 body { background: var(--app-bg); color: var(--text-primary); }
 .app { min-height: 632px; }

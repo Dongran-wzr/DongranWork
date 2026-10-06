@@ -54,10 +54,21 @@
   }
 
   async function reloadTasks() {
-    const tasks = await request('/api/tasks'+projectQuery());
+    const [tasks,projects] = await Promise.all([request('/api/tasks'),request('/api/projects')]);
+    state.workspaceProjects=projects;
     state.tasks=tasks.map(item=>({...item,running:activeStatuses.has(item.status),done:item.status==='completed',replies:[]}));
     renderSidebar(); icons();
   }
+
+  async function selectWorkspaceTask(id){
+    const item=state.tasks.find(t=>t.id===id);if(!item)return;
+    if(item.projectId!==projectId()){
+      if(item.projectId){const p=state.workspaceProjects.find(p=>p.id===item.projectId);if(!p)throw Error('任务所属项目不存在');await open(p.path);}
+      else {detach();projectContext=null;state.project=null;$('#project-name').textContent='打开项目目录';$('#project-path').textContent='本地工作区';$('#context-project').textContent='未选择项目';$('#breadcrumb').textContent='工作台';window.dispatchEvent(new CustomEvent('projectchange',{detail:null}));}
+    }
+    state.active=id;await renderTask();
+  }
+  document.addEventListener('click',e=>{const b=e.target.closest('[data-workspace-task],[data-workspace-project]');if(!b)return;window.DongranPages?.close();if(b.dataset.workspaceTask)safely(()=>selectWorkspaceTask(b.dataset.workspaceTask));else safely(()=>open(b.dataset.workspaceProject));});
 
   function home() {
     detach();state.active=null;
