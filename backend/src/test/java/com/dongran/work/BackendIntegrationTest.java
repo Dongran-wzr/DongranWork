@@ -59,6 +59,8 @@ class BackendIntegrationTest {
 
   @BeforeEach
   void configure() throws Exception {
+    // These fixtures exercise a single lead agent with deterministic model responses.
+    preferences.patch(Map.of("autoDelegate", false, "skillEvolutionEnabled", false));
     when(model.status()).thenReturn(Map.of("configured", true));
     when(model.complete(any(), any(), any())).thenReturn(answer("真实测试响应"));
     preferences.patch(Map.of("confirmPlan", false, "automationHooks", List.of()));

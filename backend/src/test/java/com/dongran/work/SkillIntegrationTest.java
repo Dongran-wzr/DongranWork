@@ -50,6 +50,7 @@ class SkillIntegrationTest {
 
   @BeforeEach
   void setup() {
+    prefs.patch(Map.of("autoDelegate", false, "skillEvolutionEnabled", false));
     db.jdbc.update("DELETE FROM skills");
     prefs.patch(Map.of("confirmPlan", false, "memoryAutoCapture", false, "contextWindow", 32768));
     task = Database.id();

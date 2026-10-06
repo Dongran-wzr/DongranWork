@@ -22,6 +22,7 @@ public class SettingsValidator {
           "showActivity",
           "reduceMotion",
           "autoDelegate",
+          "skillEvolutionEnabled",
           "confirmPlan",
           "enableProduct",
           "enableDeveloper",

@@ -3,6 +3,13 @@
   if(!api)return;
   const win=api.getCurrentWindow(),bar=document.querySelector('.desktop-bar');
   if(!bar)return;
+  // macOS uses the native traffic lights over the webview titlebar.
+  if(/Mac/.test(navigator.platform)){
+    document.documentElement.classList.add('mac-titlebar');
+    bar.addEventListener('mousedown',e=>{if(e.button===0&&e.detail===1&&!e.target.closest('button,a,input,nav'))win.startDragging().catch(console.error);});
+    bar.addEventListener('dblclick',e=>{if(!e.target.closest('button,a,input,nav'))win.toggleMaximize().catch(console.error);});
+    return;
+  }
   document.documentElement.classList.add('native-titlebar');
   const controls=document.createElement('div');controls.className='window-controls';
   controls.innerHTML='<button aria-label="最小化" title="最小化" data-window="minimize">−</button><button aria-label="最大化" title="最大化" data-window="maximize">□</button><button aria-label="关闭窗口" title="关闭窗口" data-window="close">×</button>';

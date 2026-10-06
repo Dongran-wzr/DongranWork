@@ -71,7 +71,11 @@ fn start_backend(
     let java = if cfg!(debug_assertions) {
         PathBuf::from("java")
     } else {
-        app.path().resource_dir()?.join("resources/runtime/bin/java.exe")
+        app.path().resource_dir()?.join(if cfg!(target_os = "windows") {
+            "resources/runtime/bin/java.exe"
+        } else {
+            "resources/runtime/bin/java"
+        })
     };
     let mut command = Command::new(java);
     command
